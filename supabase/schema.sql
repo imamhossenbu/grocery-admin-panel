@@ -209,7 +209,8 @@ grant all on categories, products, coupons, orders, reviews, profiles,
 -- from the database (the client only sends product ids and quantities),
 -- validates the coupon, decrements stock and inserts the order.
 -- Delivery fee rule (keep in sync with src/lib/pricing.ts):
---   subtotal >= 1000 → free, otherwise ৳60.
+--   Dhaka district: subtotal >= 1000 → free, otherwise ৳60.
+--   Outside Dhaka: flat ৳130.
 -- p_payment_method: 'cod' (default) or 'sslcommerz'. Online orders start with
 -- payment_status 'pending' and get a gateway transaction id generated here;
 -- the order stays 'Pending' until mark_order_paid() confirms the payment.
@@ -313,7 +314,13 @@ begin
     update coupons set used_count = used_count + 1 where code = v_code;
   end if;
 
-  v_fee := case when v_subtotal >= 1000 then 0 else 60 end;
+  -- Dhaka district: ৳60, free from ৳1000. Everywhere else: flat ৳130 courier
+  -- fee. Orders without a district (older clients) count as Dhaka.
+  v_fee := case
+    when lower(coalesce(nullif(trim(p_customer->>'district'), ''), nullif(trim(p_customer->>'city'), ''), 'dhaka')) = 'dhaka'
+      then case when v_subtotal >= 1000 then 0 else 60 end
+    else 130
+  end;
   v_total := greatest(0, v_subtotal - v_discount + v_fee);
 
   -- SSLCommerz accepts 10.00 – 500000.00 BDT per transaction.
@@ -784,7 +791,13 @@ begin
     update coupons set used_count = used_count + 1 where code = v_code;
   end if;
 
-  v_fee := case when v_subtotal >= 1000 then 0 else 60 end;
+  -- Dhaka district: ৳60, free from ৳1000. Everywhere else: flat ৳130 courier
+  -- fee. Orders without a district (older clients) count as Dhaka.
+  v_fee := case
+    when lower(coalesce(nullif(trim(p_customer->>'district'), ''), nullif(trim(p_customer->>'city'), ''), 'dhaka')) = 'dhaka'
+      then case when v_subtotal >= 1000 then 0 else 60 end
+    else 130
+  end;
   v_total := greatest(0, v_subtotal - v_discount + v_fee);
 
   -- SSLCommerz accepts 10.00 – 500000.00 BDT per transaction.
