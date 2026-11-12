@@ -725,3 +725,4 @@ export function ProductsManager({
     </div>
   );
 }
+
