@@ -662,3 +662,188 @@ create trigger categories_tree_guard
 revoke all on function categories_check_tree() from public, anon, authenticated;
 
 notify pgrst, 'reload schema';
+
+-- ---------------------------------------------------------------------------
+-- Bangladesh address picker (division → district → upazila/thana → union).
+-- Structured address parts for orders and saved profiles. All nullable:
+-- older rows keep only address / area / city, which stay populated for
+-- backwards compatibility (customer_area = upazila/thana, customer_city =
+-- district). Names come from the bangladesh-geo-data dataset, validated by
+-- the storefront before place_order() is called.
+-- ---------------------------------------------------------------------------
+
+alter table orders add column if not exists customer_division text;
+alter table orders add column if not exists customer_district text;
+alter table orders add column if not exists customer_upazila  text;
+alter table orders add column if not exists customer_union    text;
+alter table orders add column if not exists customer_landmark text;
+alter table orders add column if not exists customer_postcode text;
+
+alter table profiles add column if not exists division   text;
+alter table profiles add column if not exists district   text;
+alter table profiles add column if not exists upazila    text;
+alter table profiles add column if not exists union_name text;
+alter table profiles add column if not exists landmark   text;
+alter table profiles add column if not exists postcode   text;
+
+-- place_order, unchanged except that it also stores the address parts above
+-- from p_customer (division, district, upazila, union, landmark, postcode).
+-- This replaces the definition earlier in this file (same signature, so the
+-- grants below and existing callers are unaffected).
+
+create or replace function place_order(
+  p_customer       jsonb,
+  p_items          jsonb,
+  p_coupon_code    text default null,
+  p_user_id        uuid default null,
+  p_payment_method text default 'cod'
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_item      jsonb;
+  v_qty       int;
+  v_product   products%rowtype;
+  v_coupon    coupons%rowtype;
+  v_lines     jsonb := '[]'::jsonb;
+  v_subtotal  numeric := 0;
+  v_discount  numeric := 0;
+  v_fee       numeric := 0;
+  v_code      text := nullif(upper(trim(coalesce(p_coupon_code, ''))), '');
+  v_id        text;
+  v_order     orders%rowtype;
+  v_method    text := lower(trim(coalesce(p_payment_method, 'cod')));
+  v_total     numeric;
+begin
+  if v_method not in ('cod', 'sslcommerz') then
+    raise exception 'INVALID_PAYMENT_METHOD';
+  end if;
+
+  if p_items is null or jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'EMPTY_CART';
+  end if;
+
+  -- Lock rows in a stable order so two concurrent orders cannot deadlock.
+  for v_item in
+    select value from jsonb_array_elements(p_items) order by value->>'productId'
+  loop
+    v_qty := (v_item->>'qty')::int;
+    if v_qty is null or v_qty < 1 or v_qty > 99 then
+      raise exception 'INVALID_QTY';
+    end if;
+
+    select * into v_product from products
+      where id = v_item->>'productId' and active
+      for update;
+    if not found then
+      raise exception 'PRODUCT_UNAVAILABLE:%', coalesce(v_item->>'productId', '');
+    end if;
+    if v_product.stock < v_qty then
+      raise exception 'OUT_OF_STOCK:%:%', v_product.stock, v_product.name;
+    end if;
+
+    update products
+      set stock = stock - v_qty, sold_count = sold_count + v_qty, updated_at = now()
+      where id = v_product.id;
+
+    v_lines := v_lines || jsonb_build_object(
+      'productId', v_product.id,
+      'name',      v_product.name,
+      'unit',      v_product.unit,
+      'price',     v_product.price,
+      'qty',       v_qty,
+      'image',     v_product.image
+    );
+    v_subtotal := v_subtotal + v_product.price * v_qty;
+  end loop;
+
+  if v_code is not null then
+    select * into v_coupon from coupons where code = v_code for update;
+    if not found
+       or not v_coupon.active
+       or (v_coupon.starts_at  is not null and v_coupon.starts_at  > now())
+       or (v_coupon.expires_at is not null and v_coupon.expires_at < now())
+       or (v_coupon.usage_limit is not null and v_coupon.used_count >= v_coupon.usage_limit) then
+      raise exception 'COUPON_INVALID';
+    end if;
+    if v_subtotal < v_coupon.min_subtotal then
+      raise exception 'COUPON_MIN_SUBTOTAL:%', v_coupon.min_subtotal;
+    end if;
+
+    if v_coupon.discount_type = 'fixed' then
+      v_discount := least(v_coupon.value, v_subtotal);
+    else
+      v_discount := round(v_subtotal * v_coupon.value / 100);
+      if v_coupon.max_discount is not null then
+        v_discount := least(v_discount, v_coupon.max_discount);
+      end if;
+    end if;
+
+    update coupons set used_count = used_count + 1 where code = v_code;
+  end if;
+
+  v_fee := case when v_subtotal >= 1000 then 0 else 60 end;
+  v_total := greatest(0, v_subtotal - v_discount + v_fee);
+
+  -- SSLCommerz accepts 10.00 – 500000.00 BDT per transaction.
+  if v_method = 'sslcommerz' and (v_total < 10 or v_total > 500000) then
+    raise exception 'PAYMENT_AMOUNT_OUT_OF_RANGE';
+  end if;
+
+  loop
+    v_id := 'FB-' || lpad((floor(random() * 1000000))::int::text, 6, '0');
+    exit when not exists (select 1 from orders where id = v_id);
+  end loop;
+
+  insert into orders (
+    id, user_id, customer_name, customer_phone, customer_email,
+    customer_address, customer_area, customer_city, delivery_slot, notes,
+    items, subtotal, discount, coupon_code, delivery_fee, total, status_history,
+    payment_method, payment_status, payment_tran_id,
+    customer_division, customer_district, customer_upazila, customer_union,
+    customer_landmark, customer_postcode
+  ) values (
+    v_id,
+    p_user_id,
+    p_customer->>'name',
+    p_customer->>'phone',
+    nullif(p_customer->>'email', ''),
+    p_customer->>'address',
+    p_customer->>'area',
+    coalesce(nullif(p_customer->>'city', ''), 'Dhaka'),
+    p_customer->>'deliverySlot',
+    nullif(p_customer->>'notes', ''),
+    v_lines,
+    v_subtotal,
+    v_discount,
+    case when v_discount > 0 then v_code end,
+    v_fee,
+    v_total,
+    jsonb_build_array(jsonb_build_object('status', 'Pending', 'at', now())),
+    v_method,
+    case when v_method = 'sslcommerz' then 'pending' else 'unpaid' end,
+    -- e.g. FB123456-9f2c41ab07de (≤ 30 chars, unguessable, unique index).
+    -- gen_random_uuid() is built in (no extension schema on the search_path
+    -- needed); its first 12 hex digits are fully random.
+    case when v_method = 'sslcommerz'
+      then replace(v_id, '-', '') || '-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 12)
+    end,
+    nullif(trim(p_customer->>'division'), ''),
+    nullif(trim(p_customer->>'district'), ''),
+    nullif(trim(p_customer->>'upazila'), ''),
+    nullif(trim(p_customer->>'union'), ''),
+    nullif(trim(p_customer->>'landmark'), ''),
+    nullif(trim(p_customer->>'postcode'), '')
+  )
+  returning * into v_order;
+
+  return to_jsonb(v_order);
+end;
+$$;
+
+revoke all on function place_order(jsonb, jsonb, text, uuid, text)     from public, anon, authenticated;
+grant execute on function place_order(jsonb, jsonb, text, uuid, text)  to service_role;
+
+notify pgrst, 'reload schema';
