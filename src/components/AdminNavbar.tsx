@@ -13,13 +13,14 @@ import { Button } from './ui/Button';
 interface AdminNavbarProps {
   syncing: boolean;
   onRefresh: () => void;
-  onResetDemo: () => void;
+  /** Signed-in admin's email + Sign out (a server component slot). */
+  account?: React.ReactNode;
 }
 
 export function AdminNavbar({
   syncing,
   onRefresh,
-  onResetDemo,
+  account,
 }: AdminNavbarProps) {
   return (
     <header className="sticky top-0 z-40 border-b border-[#dfece3] bg-white/95 backdrop-blur">
@@ -50,19 +51,10 @@ export function AdminNavbar({
             variant="outline"
             size="sm"
             onClick={onRefresh}
-            title="Fetch latest data from Supabase Cloud"
+            title="Fetch latest data from the Supabase database"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Sync Cloud</span>
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onResetDemo}
-            className="text-xs text-[#627a6d] hover:text-red-700"
-          >
-            Reset Demo
           </Button>
 
           <a
@@ -75,6 +67,8 @@ export function AdminNavbar({
             <span>Open Storefront</span>
             <ExternalLink className="w-3 h-3 text-[#5a7165]" />
           </a>
+
+          {account}
         </div>
       </div>
     </header>

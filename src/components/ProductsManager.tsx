@@ -17,7 +17,9 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import { Category, Product } from '@/types/store';
-import { formatBDT } from '@/lib/supabase-db';
+import { formatBDT } from '@/lib/format';
+import { slugify } from '@/lib/slug';
+import { redirectToLogin } from '@/lib/redirect-to-login';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Modal } from './ui/Modal';
@@ -26,7 +28,8 @@ import { EmptyState } from './ui/EmptyState';
 interface ProductsManagerProps {
   products: Product[];
   categories: Category[];
-  onSaveProduct: (product: Product) => Promise<void>;
+  /** `isNew` tells the server to create a row (with a unique slug id) rather than update one. */
+  onSaveProduct: (product: Product, isNew: boolean) => Promise<void>;
   onDeleteProduct: (id: string) => Promise<void>;
   onToggleActive: (id: string, active: boolean) => Promise<void>;
   onToggleFeatured: (id: string, featured: boolean) => Promise<void>;
@@ -69,6 +72,7 @@ export function ProductsManager({
   });
 
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const filteredProducts = products.filter((p) => {
@@ -87,7 +91,6 @@ export function ProductsManager({
   const openAddModal = () => {
     setEditingProduct(null);
     setFormState({
-      id: `custom-${Date.now()}`,
       name: '',
       category: categories[0]?.id || 'fruits',
       unit: '1 kg',
@@ -120,6 +123,7 @@ export function ProductsManager({
     if (!file) return;
 
     setUploadingImage(true);
+    setUploadError(null);
     try {
       const fd = new FormData();
       fd.append('file', file);
@@ -129,16 +133,23 @@ export function ProductsManager({
         body: fd,
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.url) {
-          setFormState((prev) => ({ ...prev, image: data.url }));
-        }
+      if (res.status === 401 || res.status === 403) {
+        redirectToLogin();
+        return;
+      }
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.url) {
+        setFormState((prev) => ({ ...prev, image: data.url }));
+      } else {
+        setUploadError(data?.message || 'Image upload failed. Please try again.');
       }
     } catch (err) {
       console.error('Image upload failed:', err);
+      setUploadError('Could not reach the server to upload the image.');
     } finally {
       setUploadingImage(false);
+      // Allow picking the same file again after an error.
+      e.target.value = '';
     }
   };
 
@@ -148,7 +159,9 @@ export function ProductsManager({
 
     setSaving(true);
     const productToSave: Product = {
-      id: editingProduct ? editingProduct.id : formState.id || `custom-${Date.now()}`,
+      // Existing products keep their id forever (it is the storefront URL).
+      // New ones get a slug of the name; the server makes it unique.
+      id: editingProduct ? editingProduct.id : slugify(formState.name),
       name: formState.name.trim(),
       category: formState.category || 'grocery',
       unit: formState.unit || '1 kg',
@@ -168,7 +181,7 @@ export function ProductsManager({
       rating: formState.rating || 4.8,
     };
 
-    await onSaveProduct(productToSave);
+    await onSaveProduct(productToSave, !editingProduct);
     setSaving(false);
     setModalOpen(false);
   };
@@ -619,7 +632,7 @@ export function ProductsManager({
                     </span>
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
                       disabled={uploadingImage}
                       onChange={handleImageUpload}
                       className="hidden"
@@ -627,6 +640,11 @@ export function ProductsManager({
                   </label>
                   <span className="text-[11px] text-[#5a7165]">or paste URL below</span>
                 </div>
+                {uploadError && (
+                  <p role="alert" className="text-[11px] font-semibold text-red-700">
+                    {uploadError}
+                  </p>
+                )}
 
                 <input
                   type="url"
