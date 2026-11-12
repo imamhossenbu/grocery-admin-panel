@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Plus, Sparkles, Tag, Trash2 } from 'lucide-react';
 import { Coupon } from '@/types/store';
-import { formatBDT } from '@/lib/supabase-db';
+import { formatBDT } from '@/lib/format';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 

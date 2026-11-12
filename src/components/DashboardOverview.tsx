@@ -13,7 +13,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { StoreDatabase } from '@/types/store';
-import { formatBDT } from '@/lib/supabase-db';
+import { formatBDT } from '@/lib/format';
 import { Button } from './ui/Button';
 
 interface DashboardOverviewProps {

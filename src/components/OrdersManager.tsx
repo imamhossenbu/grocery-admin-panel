@@ -5,6 +5,7 @@ import {
   Banknote,
   CheckCircle2,
   Clock,
+  CreditCard,
   ExternalLink,
   MapPin,
   Package,
@@ -14,8 +15,8 @@ import {
   Truck,
   User,
 } from 'lucide-react';
-import { Order, OrderStatus } from '@/types/store';
-import { formatBDT } from '@/lib/supabase-db';
+import { Order, OrderStatus, PaymentMethod, PaymentStatus } from '@/types/store';
+import { formatBDT } from '@/lib/format';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { EmptyState } from './ui/EmptyState';
@@ -35,6 +36,74 @@ const ALL_STATUSES: OrderStatus[] = [
   'Cancelled',
 ];
 
+type PaymentFilter = 'all' | 'cod' | 'paid' | 'awaiting' | 'unsuccessful' | 'refund';
+
+const PAYMENT_FILTERS: { id: PaymentFilter; label: string }[] = [
+  { id: 'all', label: 'All payments' },
+  { id: 'cod', label: 'Cash on delivery' },
+  { id: 'paid', label: 'Paid online' },
+  { id: 'awaiting', label: 'Awaiting payment' },
+  { id: 'unsuccessful', label: 'Failed / cancelled' },
+  { id: 'refund', label: 'Needs refund' },
+];
+
+/** Paid online but the order is cancelled (e.g. payment arrived after expiry): money must be refunded or the order re-opened. */
+function needsRefund(o: Order) {
+  return o.paymentMethod === 'sslcommerz' && o.paymentStatus === 'paid' && o.status === 'Cancelled';
+}
+
+function matchesPayment(o: Order, f: PaymentFilter) {
+  switch (f) {
+    case 'cod':
+      return o.paymentMethod === 'cod';
+    case 'paid':
+      return o.paymentMethod === 'sslcommerz' && o.paymentStatus === 'paid';
+    case 'awaiting':
+      return o.paymentStatus === 'pending';
+    case 'unsuccessful':
+      return o.paymentStatus === 'failed' || o.paymentStatus === 'cancelled';
+    case 'refund':
+      return needsRefund(o);
+    default:
+      return true;
+  }
+}
+
+const PAYMENT_STYLE: Record<PaymentStatus, string> = {
+  unpaid: 'bg-[#f0f7f2] text-[#14522f] border-[#cfe3d6]',
+  pending: 'bg-amber-50 text-amber-800 border-amber-300',
+  paid: 'bg-emerald-50 text-emerald-800 border-emerald-300',
+  failed: 'bg-red-50 text-red-800 border-red-300',
+  cancelled: 'bg-red-50 text-red-800 border-red-300',
+  refunded: 'bg-sky-50 text-sky-800 border-sky-300',
+};
+
+function paymentLabel(method: PaymentMethod, status: PaymentStatus) {
+  if (method === 'cod') return status === 'paid' ? 'COD · Paid' : status === 'refunded' ? 'COD · Refunded' : 'COD';
+  const s: Record<PaymentStatus, string> = {
+    unpaid: 'Unpaid',
+    pending: 'Awaiting payment',
+    paid: 'Paid',
+    failed: 'Payment failed',
+    cancelled: 'Payment cancelled',
+    refunded: 'Refunded',
+  };
+  return `Online · ${s[status]}`;
+}
+
+function PaymentBadge({ order }: { order: Order }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${PAYMENT_STYLE[order.paymentStatus] ?? PAYMENT_STYLE.unpaid}`}
+      title={order.paymentTranId ? `SSLCommerz tran_id: ${order.paymentTranId}` : undefined}
+    >
+      {order.paymentMethod === 'cod' ? <Banknote className="w-3 h-3" /> : <CreditCard className="w-3 h-3" />}
+      {paymentLabel(order.paymentMethod, order.paymentStatus)}
+      {needsRefund(order) && <span className="ml-1 rounded bg-red-600 px-1 text-white">Refund</span>}
+    </span>
+  );
+}
+
 export function OrdersManager({
   orders,
   onUpdateStatus,
@@ -42,6 +111,7 @@ export function OrdersManager({
 }: OrdersManagerProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
@@ -54,7 +124,7 @@ export function OrdersManager({
       o.customer.name.toLowerCase().includes(search.toLowerCase()) ||
       o.customer.phone.toLowerCase().includes(search.toLowerCase()) ||
       o.customer.area.toLowerCase().includes(search.toLowerCase());
-    return matchesStatus && matchesSearch;
+    return matchesStatus && matchesSearch && matchesPayment(o, paymentFilter);
   });
 
   return (
@@ -63,10 +133,10 @@ export function OrdersManager({
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="font-display text-2xl font-bold text-[#112a1d]">
-            Cash on Delivery Orders Pipeline
+            Orders Pipeline
           </h2>
           <p className="text-xs text-[#5a7165]">
-            Track and process grocery orders through dispatch and doorstep delivery.
+            Track and process grocery orders (cash on delivery and online payments) through dispatch and doorstep delivery.
           </p>
         </div>
       </div>
@@ -114,6 +184,19 @@ export function OrdersManager({
             );
           })}
         </div>
+
+        <select
+          value={paymentFilter}
+          onChange={(e) => setPaymentFilter(e.target.value as PaymentFilter)}
+          aria-label="Filter by payment"
+          className="rounded-xl border border-[#cfe3d6] bg-white px-3 py-1.5 text-xs font-bold text-[#14522f] focus:border-[#1a663b] focus:outline-none cursor-pointer"
+        >
+          {PAYMENT_FILTERS.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.label} ({orders.filter((o) => matchesPayment(o, f.id)).length})
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Orders Grid / Cards */}
@@ -122,7 +205,7 @@ export function OrdersManager({
           <EmptyState
             icon={<Package className="w-8 h-8" />}
             title="No orders found"
-            description="No Cash on Delivery orders matched this filter."
+            description="No orders matched this filter."
           />
         </div>
       ) : (
@@ -233,7 +316,7 @@ export function OrdersManager({
                     <span className="text-base font-extrabold text-[#1a663b]">
                       {formatBDT(order.total)}
                     </span>
-                    <span className="text-[10px] text-[#789d87]">(COD)</span>
+                    <PaymentBadge order={order} />
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -278,6 +361,11 @@ export function OrdersManager({
                 <span className="font-bold text-[#112a1d] text-base">
                   {selectedOrder.status}
                 </span>
+                {selectedOrder.paymentStatus === 'pending' && (
+                  <span className="mt-1 block text-[11px] text-amber-800">
+                    Online payment not completed yet — confirm only if the customer switched to cash on delivery.
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-[#5a7165]">
@@ -299,6 +387,33 @@ export function OrdersManager({
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* Payment */}
+            <div className="rounded-2xl border border-[#dfece3] bg-[#fbfdfc] p-4 space-y-1.5 text-xs text-[#5a7165]">
+              <span className="font-bold text-[#112a1d] block text-sm">Payment</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span>{selectedOrder.paymentMethod === 'cod' ? 'Cash on delivery' : 'Online (SSLCommerz)'}</span>
+                <PaymentBadge order={selectedOrder} />
+              </div>
+              {selectedOrder.paidAt && (
+                <p>
+                  Paid at:{' '}
+                  <strong className="text-[#112a1d]">
+                    {new Date(selectedOrder.paidAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })}
+                  </strong>
+                </p>
+              )}
+              {selectedOrder.paymentTranId && (
+                <p>
+                  Transaction ID: <span className="font-mono text-[#112a1d]">{selectedOrder.paymentTranId}</span>
+                </p>
+              )}
+              {needsRefund(selectedOrder) && (
+                <p className="rounded-xl bg-red-50 p-2 font-bold text-red-800">
+                  Paid after the order was cancelled — refund the customer from the SSLCommerz merchant panel, or re-open the order.
+                </p>
+              )}
             </div>
 
             {/* Customer Details */}
@@ -385,7 +500,13 @@ export function OrdersManager({
                 </span>
               </div>
               <div className="flex justify-between border-t border-[#e2efe6] pt-2 text-base font-extrabold text-[#112a1d]">
-                <span>Total Due at Doorstep (COD):</span>
+                <span>
+                  {selectedOrder.paymentMethod === 'cod'
+                    ? 'Total Due at Doorstep (COD):'
+                    : selectedOrder.paymentStatus === 'paid'
+                    ? 'Total (paid online):'
+                    : 'Total (online, not paid):'}
+                </span>
                 <span className="text-[#1a663b]">{formatBDT(selectedOrder.total)}</span>
               </div>
             </div>
