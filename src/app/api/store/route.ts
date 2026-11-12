@@ -3,8 +3,6 @@ import { readCloudStore, writeCloudStore } from '@/lib/supabase-db';
 import { INITIAL_STORE_DATA } from '@/lib/seed-data';
 import { Category, Coupon, OrderStatus, Product } from '@/types/store';
 
-export const dynamic = 'force-dynamic';
-
 export async function GET() {
   try {
     const db = await readCloudStore();

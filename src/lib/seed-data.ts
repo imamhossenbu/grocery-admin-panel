@@ -1,7 +1,7 @@
 import { StoreDatabase } from '@/types/store';
 
 export const INITIAL_STORE_DATA: StoreDatabase = {
-  updatedAt: new Date().toISOString(),
+  updatedAt: '2026-11-12T12:00:00.000Z',
   categories: [
     {
       id: 'fruits',
@@ -387,7 +387,7 @@ export const INITIAL_STORE_DATA: StoreDatabase = {
   orders: [
     {
       id: 'FB-240901',
-      createdAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+      createdAt: '2026-11-12T11:15:00.000Z',
       customer: {
         name: 'Farhana Akter',
         phone: '01711-234567',
@@ -434,7 +434,7 @@ export const INITIAL_STORE_DATA: StoreDatabase = {
     },
     {
       id: 'FB-240902',
-      createdAt: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
+      createdAt: '2026-11-12T09:00:00.000Z',
       customer: {
         name: 'Tanvir Hasan',
         phone: '01819-876543',
@@ -480,7 +480,7 @@ export const INITIAL_STORE_DATA: StoreDatabase = {
     },
     {
       id: 'FB-240903',
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 18).toISOString(),
+      createdAt: '2026-11-11T18:00:00.000Z',
       customer: {
         name: 'Nusrat Jahan',
         phone: '01912-345987',
@@ -518,7 +518,7 @@ export const INITIAL_STORE_DATA: StoreDatabase = {
     },
     {
       id: 'FB-240904',
-      createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+      createdAt: '2026-11-12T11:45:00.000Z',
       customer: {
         name: 'Imran Mahmud',
         phone: '01675-998877',
