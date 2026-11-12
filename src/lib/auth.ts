@@ -1,4 +1,6 @@
 import 'server-only';
+import { cache } from 'react';
+import { redirect } from 'next/navigation';
 import { NextResponse } from 'next/server';
 import type { User } from '@supabase/supabase-js';
 import { supabaseServer } from '@/lib/supabase/server';
@@ -64,3 +66,15 @@ export async function requireAdmin(): Promise<
   if (result.ok) return result;
   return { ok: false, response: authErrorResponse(result.status) };
 }
+
+/**
+ * Guard for Server Components and pages: redirects to /login unless the
+ * request comes from an admin. Deduplicated per request with React cache(),
+ * so several Suspense sections on one page cost one Auth round trip.
+ * Reads cookies, so it must run inside a <Suspense> boundary.
+ */
+export const requireAdminPage = cache(async (): Promise<AdminUser> => {
+  const result = await checkAdmin();
+  if (!result.ok) redirect('/login');
+  return result.admin;
+});

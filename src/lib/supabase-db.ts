@@ -45,7 +45,7 @@ export const DATABASE_NOT_READY_MESSAGE =
 
 let client: SupabaseClient | null = null;
 
-function getDb(): SupabaseClient {
+export function getDb(): SupabaseClient {
   if (client) return client;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const secretKey = process.env.SUPABASE_SECRET_KEY;
@@ -68,7 +68,7 @@ const NOT_READY_CODES = new Set(['PGRST205', 'PGRST202', '42P01', '42883']);
 type ErrorOverrides = Partial<Record<string, StoreError>>;
 
 /** Converts a PostgREST error into a StoreError the API route can return. */
-function toStoreError(error: PostgrestError, overrides: ErrorOverrides = {}): StoreError {
+export function toStoreError(error: PostgrestError, overrides: ErrorOverrides = {}): StoreError {
   const code = error.code ?? '';
   const message = error.message ?? '';
 
@@ -118,7 +118,7 @@ function toStoreError(error: PostgrestError, overrides: ErrorOverrides = {}): St
 /** numeric columns arrive from PostgREST as numbers or strings. */
 type Numeric = number | string;
 
-interface CategoryRow {
+export interface CategoryRow {
   id: string;
   name: string;
   blurb: string;
@@ -128,7 +128,7 @@ interface CategoryRow {
   sort_order: Numeric | null;
 }
 
-interface ProductRow {
+export interface ProductRow {
   id: string;
   name: string;
   category: string;
@@ -153,7 +153,7 @@ interface ProductRow {
   updated_at: string;
 }
 
-interface CouponRow {
+export interface CouponRow {
   code: string;
   label: string;
   discount_type: string;
@@ -167,7 +167,7 @@ interface CouponRow {
   used_count: Numeric;
 }
 
-interface OrderRow {
+export interface OrderRow {
   id: string;
   user_id: string | null;
   customer_name: string;
@@ -192,17 +192,25 @@ interface OrderRow {
   status_history: unknown;
   created_at: string;
   updated_at: string;
+  // Structured address columns (added by a later migration; may be absent).
+  customer_division?: string | null;
+  customer_district?: string | null;
+  customer_upazila?: string | null;
+  customer_union?: string | null;
 }
 
 // Explicit column lists: `orders.access_token` (the guest order-page secret)
 // must never be sent to the browser, so we do not `select('*')`.
-const CATEGORY_COLUMNS = 'id, name, blurb, image, parent_id, description, sort_order';
-const PRODUCT_COLUMNS =
+export const CATEGORY_COLUMNS = 'id, name, blurb, image, parent_id, description, sort_order';
+export const PRODUCT_COLUMNS =
   'id, name, category, unit, price, old_price, description, image, images, badge, rating, review_count, sku, stock, sold_count, featured, active, origin, nutrition, tags, created_at, updated_at';
-const COUPON_COLUMNS =
+export const COUPON_COLUMNS =
   'code, label, discount_type, value, max_discount, min_subtotal, active, starts_at, expires_at, usage_limit, used_count';
-const ORDER_COLUMNS =
+export const ORDER_COLUMNS =
   'id, user_id, customer_name, customer_phone, customer_email, customer_address, customer_area, customer_city, delivery_slot, notes, items, subtotal, discount, coupon_code, delivery_fee, total, payment_method, payment_status, payment_tran_id, paid_at, status, status_history, created_at, updated_at';
+
+/** Optional structured-address columns; read only when the migration has run. */
+export const ORDER_ADDRESS_COLUMNS = 'customer_division, customer_district, customer_upazila, customer_union';
 
 function num(value: unknown): number {
   const n = Number(value);
@@ -215,7 +223,7 @@ function optNum(value: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-function categoryFromRow(row: CategoryRow): Category {
+export function categoryFromRow(row: CategoryRow): Category {
   return {
     id: row.id,
     name: row.name,
@@ -227,7 +235,7 @@ function categoryFromRow(row: CategoryRow): Category {
   };
 }
 
-function productFromRow(row: ProductRow): Product {
+export function productFromRow(row: ProductRow): Product {
   return {
     id: row.id,
     name: row.name,
@@ -254,7 +262,7 @@ function productFromRow(row: ProductRow): Product {
   };
 }
 
-function couponFromRow(row: CouponRow): Coupon {
+export function couponFromRow(row: CouponRow): Coupon {
   return {
     code: row.code,
     label: row.label,
@@ -293,7 +301,7 @@ function statusHistoryFromJson(value: unknown): OrderStatusEvent[] {
     .map((e) => ({ status: e.status as OrderStatus, at: e.at as string }));
 }
 
-function orderFromRow(row: OrderRow): Order {
+export function orderFromRow(row: OrderRow): Order {
   return {
     id: row.id,
     createdAt: row.created_at,
@@ -306,6 +314,10 @@ function orderFromRow(row: OrderRow): Order {
       city: row.customer_city,
       deliverySlot: row.delivery_slot,
       notes: row.notes ?? undefined,
+      division: row.customer_division ?? undefined,
+      district: row.customer_district ?? undefined,
+      upazila: row.customer_upazila ?? undefined,
+      union: row.customer_union ?? undefined,
     },
     items: orderItemsFromJson(row.items),
     subtotal: num(row.subtotal),
@@ -528,6 +540,35 @@ export async function setProductActive(id: string, active: boolean): Promise<voi
 
 export async function setProductFeatured(id: string, featured: boolean): Promise<void> {
   await patchProduct(id, { featured });
+}
+
+/** Shows or hides many products at once. Returns how many rows changed. */
+export async function setProductsActive(ids: string[], active: boolean): Promise<number> {
+  const { data, error } = await getDb()
+    .from('products')
+    .update({ active, updated_at: new Date().toISOString() })
+    .in('id', ids)
+    .select('id');
+  if (error) throw toStoreError(error);
+  return data?.length ?? 0;
+}
+
+/** Moves many products into one category. */
+export async function setProductsCategory(ids: string[], category: string): Promise<number> {
+  const { data, error } = await getDb()
+    .from('products')
+    .update({ category, updated_at: new Date().toISOString() })
+    .in('id', ids)
+    .select('id');
+  if (error) throw toStoreError(error, { '23503': unknownCategoryError(category) });
+  return data?.length ?? 0;
+}
+
+/** Deletes many products. Order history keeps its own copy of each line. */
+export async function deleteProducts(ids: string[]): Promise<number> {
+  const { data, error } = await getDb().from('products').delete().in('id', ids).select('id');
+  if (error) throw toStoreError(error);
+  return data?.length ?? 0;
 }
 
 export async function setProductStock(id: string, stock: number, price?: number): Promise<void> {
@@ -768,6 +809,53 @@ export async function setOrderStatus(id: string, status: OrderStatus): Promise<v
   throw toStoreError(error);
 }
 
+/**
+ * Updates many orders one by one through set_order_status (each keeps its
+ * own history entry and stock bookkeeping). Stops at the first failure and
+ * reports how far it got.
+ */
+export async function setOrdersStatus(ids: string[], status: OrderStatus): Promise<number> {
+  let done = 0;
+  for (const id of ids) {
+    try {
+      await setOrderStatus(id, status);
+      done += 1;
+    } catch (err) {
+      if (err instanceof StoreError && done > 0) {
+        throw new StoreError(
+          err.status,
+          err.code,
+          `${done} of ${ids.length} orders were updated, then: ${err.message}`
+        );
+      }
+      throw err;
+    }
+  }
+  return done;
+}
+
+/**
+ * Records that the money of a paid-but-cancelled online order was returned
+ * (payment_status 'paid' -> 'refunded'). Only allowed in that exact state.
+ */
+export async function markOrderRefunded(id: string): Promise<void> {
+  const { data, error } = await getDb()
+    .from('orders')
+    .update({ payment_status: 'refunded', updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('payment_status', 'paid')
+    .eq('status', 'Cancelled')
+    .select('id');
+  if (error) throw toStoreError(error);
+  if (!data || data.length === 0) {
+    throw new StoreError(
+      409,
+      'CONFLICT',
+      'Only a cancelled order that was paid online can be marked as refunded. Refresh and try again.'
+    );
+  }
+}
+
 export async function deleteOrder(id: string): Promise<void> {
   const { error } = await getDb().from('orders').delete().eq('id', id);
   if (error) throw toStoreError(error);
@@ -793,6 +881,28 @@ export async function saveCoupon(input: CouponWrite): Promise<void> {
   if (input.usageLimit !== undefined) row.usage_limit = input.usageLimit;
 
   const { error } = await getDb().from('coupons').upsert(row, { onConflict: 'code' });
+  if (error) throw toStoreError(error);
+}
+
+// ---------------------------------------------------------------------------
+// Reviews (moderation)
+// ---------------------------------------------------------------------------
+
+/** Approve (show on the storefront) or hide a review. The rating trigger updates the product. */
+export async function setReviewApproved(id: string, approved: boolean): Promise<void> {
+  const { data, error } = await getDb()
+    .from('reviews')
+    .update({ approved })
+    .eq('id', id)
+    .select('id');
+  if (error) throw toStoreError(error);
+  if (!data || data.length === 0) {
+    throw new StoreError(404, 'NOT_FOUND', 'This review no longer exists. Refresh and try again.');
+  }
+}
+
+export async function deleteReview(id: string): Promise<void> {
+  const { error } = await getDb().from('reviews').delete().eq('id', id);
   if (error) throw toStoreError(error);
 }
 

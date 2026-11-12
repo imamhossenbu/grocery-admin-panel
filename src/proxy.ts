@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { isAdminAppMetadata } from '@/lib/admin-role';
 import { safeNext } from '@/lib/safe-next';
+import { ADMIN_AUTH_COOKIE_OPTIONS } from '@/lib/supabase/cookie';
 
 const NO_STORE = 'no-store, max-age=0';
 
@@ -37,6 +38,8 @@ export async function proxy(request: NextRequest) {
   const cacheHeaders: Record<string, string> = {};
 
   const supabase = createServerClient(url, key, {
+    // Admin-only cookie name: never reads the storefront's customer session.
+    cookieOptions: ADMIN_AUTH_COOKIE_OPTIONS,
     cookies: {
       getAll: () => request.cookies.getAll(),
       setAll: (cookiesToSet, headers) => {

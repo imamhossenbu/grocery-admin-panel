@@ -1,6 +1,7 @@
 import 'server-only';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { ADMIN_AUTH_COOKIE_OPTIONS } from './cookie';
 
 /**
  * Per-request Supabase client bound to the visitor's auth cookies
@@ -17,6 +18,8 @@ export async function supabaseServer() {
 
   const cookieStore = await cookies();
   return createServerClient(url, key, {
+    // Admin-only cookie name (see ./cookie.ts).
+    cookieOptions: ADMIN_AUTH_COOKIE_OPTIONS,
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (toSet) => {

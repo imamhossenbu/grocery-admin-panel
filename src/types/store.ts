@@ -103,6 +103,11 @@ export interface Order {
     city: string;
     deliverySlot: string;
     notes?: string;
+    /** Structured Bangladesh address (newer orders only). */
+    division?: string;
+    district?: string;
+    upazila?: string;
+    union?: string;
   };
   items: OrderItem[];
   subtotal: number;

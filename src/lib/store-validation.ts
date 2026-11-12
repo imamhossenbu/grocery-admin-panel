@@ -257,3 +257,43 @@ export function parseCoupon(p: Payload): CouponWrite {
     usageLimit,
   };
 }
+
+/** A non-empty list of distinct ids (bulk actions), at most `max`. */
+export function parseIdList(p: Payload, key = 'ids', label = 'ids', max = 200): string[] {
+  const value = p[key];
+  if (!Array.isArray(value) || value.length === 0) throw invalid(`${label} must be a non-empty list.`);
+  if (value.length > max) throw invalid(`At most ${max} items can be changed at once.`);
+  if (value.some((v) => typeof v !== 'string' || !v.trim() || v.length > 200)) {
+    throw invalid(`${label} must be a list of ids.`);
+  }
+  return [...new Set((value as string[]).map((v) => v.trim()))];
+}
+
+export function parseBulkActive(p: Payload): { ids: string[]; active: boolean } {
+  return { ids: parseIdList(p, 'ids', 'Product ids'), active: bool(p.active, 'active') };
+}
+
+export function parseBulkOrderStatus(p: Payload): { ids: string[]; status: OrderStatus } {
+  const ids = parseIdList(p, 'ids', 'Order ids', 100);
+  const status = p.status;
+  if (typeof status !== 'string' || !ORDER_STATUSES.includes(status as OrderStatus)) {
+    throw invalid(`Status must be one of: ${ORDER_STATUSES.join(', ')}.`);
+  }
+  return { ids, status: status as OrderStatus };
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function parseReviewId(p: Payload): string {
+  const id = parseId(p, 'id', 'Review id');
+  if (!UUID_RE.test(id)) throw invalid('Review id is not valid.');
+  return id;
+}
+
+export function parseReviewModeration(p: Payload): { id: string; approved: boolean } {
+  return { id: parseReviewId(p), approved: bool(p.approved, 'approved') };
+}
+
+export function parseBulkCategory(p: Payload): { ids: string[]; category: string } {
+  return { ids: parseIdList(p, 'ids', 'Product ids'), category: requiredString(p, 'category', 'Category', 200) };
+}

@@ -7,29 +7,48 @@ import {
   deleteCoupon,
   deleteOrder,
   deleteProduct,
+  deleteProducts,
+  deleteReview,
   insertProduct,
+  markOrderRefunded,
   productExists,
   readStore,
   reorderCategories,
   saveCategory,
   saveCoupon,
   setOrderStatus,
+  setOrdersStatus,
   setProductActive,
+  setProductsActive,
+  setProductsCategory,
+  setReviewApproved,
   setProductFeatured,
   setProductStock,
   updateProduct,
 } from '@/lib/supabase-db';
 import {
   asPayload,
+  parseBulkActive,
+  parseBulkCategory,
+  parseBulkOrderStatus,
   parseCategory,
   parseCategoryReorder,
   parseCoupon,
   parseId,
+  parseIdList,
   parseOrderStatus,
   parseProduct,
   parseQuickStock,
+  parseReviewId,
+  parseReviewModeration,
   parseToggle,
 } from '@/lib/store-validation';
+
+/** What an action reports back (e.g. the id of a newly created product). */
+type ActionResult = { id?: string; count?: number } | void;
+
+/** Actions that cannot change anything the storefront shows. */
+const NO_STOREFRONT_IMPACT = new Set(['MARK_ORDER_REFUNDED', 'DELETE_ORDER']);
 
 const NO_STORE = { 'Cache-Control': 'no-store, max-age=0' };
 
@@ -63,7 +82,7 @@ export async function GET() {
 }
 
 /** Runs one targeted row operation. Throws a StoreError on bad input. */
-async function runAction(action: unknown, rawPayload: unknown): Promise<void> {
+async function runAction(action: unknown, rawPayload: unknown): Promise<ActionResult> {
   switch (action) {
     case 'SAVE_PRODUCT': {
       const payload = asPayload(rawPayload);
@@ -74,13 +93,25 @@ async function runAction(action: unknown, rawPayload: unknown): Promise<void> {
       const isNew =
         typeof payload.isNew === 'boolean' ? payload.isNew : !id || !(await productExists(id));
       if (isNew) {
-        await insertProduct(product, id);
-      } else {
-        if (!id) throw new StoreError(400, 'VALIDATION_ERROR', 'Product id is required.');
-        await updateProduct(id, product);
+        return { id: await insertProduct(product, id) };
       }
-      return;
+      if (!id) throw new StoreError(400, 'VALIDATION_ERROR', 'Product id is required.');
+      await updateProduct(id, product);
+      return { id };
     }
+
+    case 'BULK_SET_PRODUCTS_ACTIVE': {
+      const { ids, active } = parseBulkActive(asPayload(rawPayload));
+      return { count: await setProductsActive(ids, active) };
+    }
+
+    case 'BULK_SET_PRODUCTS_CATEGORY': {
+      const { ids, category } = parseBulkCategory(asPayload(rawPayload));
+      return { count: await setProductsCategory(ids, category) };
+    }
+
+    case 'BULK_DELETE_PRODUCTS':
+      return { count: await deleteProducts(parseIdList(asPayload(rawPayload), 'ids', 'Product ids')) };
 
     case 'DELETE_PRODUCT':
       return deleteProduct(parseId(asPayload(rawPayload), 'id', 'Product id'));
@@ -114,6 +145,26 @@ async function runAction(action: unknown, rawPayload: unknown): Promise<void> {
       return setOrderStatus(id, status);
     }
 
+    case 'BULK_UPDATE_ORDER_STATUS': {
+      const { ids, status } = parseBulkOrderStatus(asPayload(rawPayload));
+      return { count: await setOrdersStatus(ids, status) };
+    }
+
+    case 'MARK_ORDER_REFUNDED':
+      return markOrderRefunded(parseId(asPayload(rawPayload), 'id', 'Order id'));
+
+    case 'SET_REVIEW_APPROVED': {
+      const { id, approved } = parseReviewModeration(asPayload(rawPayload));
+      return setReviewApproved(id, approved);
+    }
+
+    case 'DELETE_REVIEW':
+      return deleteReview(parseReviewId(asPayload(rawPayload)));
+
+    case 'REVALIDATE_STOREFRONT':
+      // Nothing to write: the revalidation below is the whole action.
+      return;
+
     case 'DELETE_ORDER':
       return deleteOrder(parseId(asPayload(rawPayload), 'id', 'Order id'));
 
@@ -144,10 +195,14 @@ export async function POST(req: Request) {
     }
     const { action, payload } = asPayload(body);
 
-    await runAction(action, payload);
-    await revalidateStorefront();
+    const result = await runAction(action, payload);
+    if (typeof action === 'string' && !NO_STOREFRONT_IMPACT.has(action)) {
+      await revalidateStorefront();
+    }
 
-    return NextResponse.json({ success: true, db: await readStore() }, { headers: NO_STORE });
+    // The panel re-reads what it shows through its server components
+    // (router.refresh()), so the response only carries the action's result.
+    return NextResponse.json({ success: true, result: result ?? null }, { headers: NO_STORE });
   } catch (err) {
     return errorResponse(err);
   }
