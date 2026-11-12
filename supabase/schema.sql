@@ -616,3 +616,49 @@ grant execute on function expire_stale_payments(int)                   to servic
 
 -- Tell the API layer to pick up the new tables and functions immediately.
 notify pgrst, 'reload schema';
+
+-- ---------------------------------------------------------------------------
+-- Category tree: a category may have a parent (subcategory). Products can
+-- belong to any level; a parent category page shows its whole subtree.
+-- ---------------------------------------------------------------------------
+
+alter table categories add column if not exists parent_id text
+  references categories(id) on update cascade on delete restrict;
+alter table categories add column if not exists description text not null default '';
+create index if not exists categories_parent_idx on categories (parent_id);
+
+alter table categories drop constraint if exists categories_not_own_parent;
+alter table categories add constraint categories_not_own_parent check (parent_id is null or parent_id <> id);
+
+-- Reject cycles (A → B → A) and trees deeper than 3 levels.
+create or replace function categories_check_tree()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_cursor text := new.parent_id;
+  v_depth  int  := 1;
+begin
+  while v_cursor is not null loop
+    if v_cursor = new.id then
+      raise exception 'CATEGORY_CYCLE';
+    end if;
+    v_depth := v_depth + 1;
+    if v_depth > 3 then
+      raise exception 'CATEGORY_TOO_DEEP';
+    end if;
+    select parent_id into v_cursor from categories where id = v_cursor;
+  end loop;
+  return new;
+end;
+$$;
+
+drop trigger if exists categories_tree_guard on categories;
+create trigger categories_tree_guard
+  before insert or update of parent_id on categories
+  for each row execute function categories_check_tree();
+
+revoke all on function categories_check_tree() from public, anon, authenticated;
+
+notify pgrst, 'reload schema';

@@ -4,6 +4,12 @@ export interface Category {
   blurb: string;
   image: string;
   iconName?: string;
+  /** Parent category id; null/undefined = top level. At most 3 levels deep. */
+  parentId?: string | null;
+  /** Longer text shown on the storefront category page. */
+  description?: string;
+  /** Position among its siblings (ascending). Written by REORDER_CATEGORIES. */
+  sortOrder?: number;
 }
 
 export interface Product {

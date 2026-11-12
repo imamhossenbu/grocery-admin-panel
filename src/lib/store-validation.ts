@@ -2,7 +2,9 @@ import 'server-only';
 
 import { ORDER_STATUSES, type OrderStatus } from '@/types/store';
 import {
+  CATEGORY_CYCLE_MESSAGE,
   StoreError,
+  type CategoryReorder,
   type CategoryWrite,
   type CouponWrite,
   type ProductWrite,
@@ -143,15 +145,65 @@ export function parseQuickStock(p: Payload): { id: string; stock: number; price?
   };
 }
 
+/** Absent key → undefined (leave untouched); null/blank → ''. */
+function patchString(p: Payload, key: string, label: string, max: number): string | undefined {
+  if (!(key in p) || p[key] === undefined) return undefined;
+  return optionalString(p, key, label, max) ?? '';
+}
+
+const CATEGORY_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** Absent → undefined (leave untouched); null/'' → null (top level). */
+function parseParentId(p: Payload, selfId: string): string | null | undefined {
+  if (!('parentId' in p) || p.parentId === undefined) return undefined;
+  const value = p.parentId;
+  if (value === null || value === '') return null;
+  if (typeof value !== 'string') throw invalid('Parent category must be a category id.');
+  const parentId = value.trim();
+  if (!parentId) return null;
+  if (parentId.length > 100) throw invalid('Parent category id is too long.');
+  if (parentId === selfId) {
+    throw new StoreError(400, 'CATEGORY_CYCLE', CATEGORY_CYCLE_MESSAGE);
+  }
+  return parentId;
+}
+
 export function parseCategory(p: Payload): CategoryWrite {
   const id = requiredString(p, 'id', 'Category id', 100);
   if (/\s/.test(id)) throw invalid('Category id cannot contain spaces.');
+  const isNew = p.isNew === undefined || p.isNew === null ? undefined : bool(p.isNew, 'isNew');
+  // Category ids appear in storefront URLs; new ones must be clean slugs.
+  // (Older ids are left alone so existing categories stay editable.)
+  if (isNew && !CATEGORY_SLUG.test(id)) {
+    throw invalid('Category slug may only contain lowercase letters, digits and single hyphens.');
+  }
   return {
     id,
     name: requiredString(p, 'name', 'Category name', 200),
-    blurb: optionalString(p, 'blurb', 'Blurb', 500) ?? '',
-    image: optionalString(p, 'image', 'Image URL', 2000) ?? '',
+    blurb: patchString(p, 'blurb', 'Blurb', 500),
+    image: patchString(p, 'image', 'Image URL', 2000),
+    description: patchString(p, 'description', 'Description', 5000),
+    parentId: parseParentId(p, id),
+    isNew,
   };
+}
+
+export function parseCategoryReorder(p: Payload): CategoryReorder {
+  const parentId = parseParentId(p, '') ?? null;
+  const ids = p.ids;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw invalid('ids must be a non-empty list of category ids.');
+  }
+  if (ids.length > 500) throw invalid('Too many categories in one reorder.');
+  if (ids.some((v) => typeof v !== 'string' || !v.trim())) {
+    throw invalid('ids must be a list of category ids.');
+  }
+  const clean = (ids as string[]).map((v) => v.trim());
+  if (new Set(clean).size !== clean.length) throw invalid('ids must not contain duplicates.');
+  if (parentId !== null && clean.includes(parentId)) {
+    throw invalid('A category cannot be listed among its own children.');
+  }
+  return { parentId, ids: clean };
 }
 
 export function parseOrderStatus(p: Payload): { id: string; status: OrderStatus } {

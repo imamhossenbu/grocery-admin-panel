@@ -10,6 +10,7 @@ import {
   insertProduct,
   productExists,
   readStore,
+  reorderCategories,
   saveCategory,
   saveCoupon,
   setOrderStatus,
@@ -21,6 +22,7 @@ import {
 import {
   asPayload,
   parseCategory,
+  parseCategoryReorder,
   parseCoupon,
   parseId,
   parseOrderStatus,
@@ -100,6 +102,9 @@ async function runAction(action: unknown, rawPayload: unknown): Promise<void> {
 
     case 'SAVE_CATEGORY':
       return saveCategory(parseCategory(asPayload(rawPayload)));
+
+    case 'REORDER_CATEGORIES':
+      return reorderCategories(parseCategoryReorder(asPayload(rawPayload)));
 
     case 'DELETE_CATEGORY':
       return deleteCategory(parseId(asPayload(rawPayload), 'id', 'Category id'));

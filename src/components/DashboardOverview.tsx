@@ -36,6 +36,8 @@ export function DashboardOverview({
     (o) => o.status === 'Pending' || o.status === 'Confirmed'
   );
 
+  const topLevelCategories = db.categories.filter((c) => !c.parentId).length;
+
   const lowStockCount = db.products.filter((p) => p.stock <= 20).length;
   const outOfStockCount = db.products.filter((p) => p.stock <= 0).length;
 
@@ -57,7 +59,7 @@ export function DashboardOverview({
     {
       label: 'Catalog Items',
       value: db.products.length.toString(),
-      subtext: `${db.categories.length} categories active`,
+      subtext: `${topLevelCategories} top-level categories · ${db.categories.length - topLevelCategories} subcategories`,
       icon: Package,
       color: 'bg-sky-50 text-[#0369a1] border-[#bae6fd]',
     },

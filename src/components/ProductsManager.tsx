@@ -1,29 +1,32 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Check,
   Edit,
   Eye,
   EyeOff,
-  Image as ImageIcon,
-  Loader2,
   Package,
   Plus,
   Search,
   Sparkles,
   Star,
   Trash2,
-  UploadCloud,
 } from 'lucide-react';
 import { Category, Product } from '@/types/store';
 import { formatBDT } from '@/lib/format';
 import { slugify } from '@/lib/slug';
-import { redirectToLogin } from '@/lib/redirect-to-login';
+import {
+  categoryOptions,
+  countByCategory,
+  getCategoryPath,
+  getSubtreeIds,
+} from '@/lib/category-tree';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Modal } from './ui/Modal';
 import { EmptyState } from './ui/EmptyState';
+import { ImageUploadField } from './ui/ImageUploadField';
 
 interface ProductsManagerProps {
   products: Product[];
@@ -71,12 +74,23 @@ export function ProductsManager({
     active: true,
   });
 
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Tree-ordered options ("Fruits › Local fruits") and per-product paths.
+  const options = useMemo(() => categoryOptions(categories), [categories]);
+  const pathById = useMemo(
+    () => new Map(categories.map((c) => [c.id, getCategoryPath(categories, c.id)])),
+    [categories]
+  );
+  // Filtering by a category includes everything below it.
+  const filterIds = useMemo(
+    () => (categoryFilter === 'all' ? null : getSubtreeIds(categories, categoryFilter)),
+    [categories, categoryFilter]
+  );
+  const counts = useMemo(() => countByCategory(categories, products), [categories, products]);
+
   const filteredProducts = products.filter((p) => {
-    const matchesCat = categoryFilter === 'all' || p.category === categoryFilter;
+    const matchesCat = !filterIds || filterIds.has(p.category);
     const matchesStock =
       stockFilter === 'all' ||
       (stockFilter === 'low' && p.stock > 0 && p.stock <= 20) ||
@@ -116,41 +130,6 @@ export function ProductsManager({
     setEditingProduct(p);
     setFormState({ ...p });
     setModalOpen(true);
-  };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadingImage(true);
-    setUploadError(null);
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: fd,
-      });
-
-      if (res.status === 401 || res.status === 403) {
-        redirectToLogin();
-        return;
-      }
-      const data = await res.json().catch(() => null);
-      if (res.ok && data?.url) {
-        setFormState((prev) => ({ ...prev, image: data.url }));
-      } else {
-        setUploadError(data?.message || 'Image upload failed. Please try again.');
-      }
-    } catch (err) {
-      console.error('Image upload failed:', err);
-      setUploadError('Could not reach the server to upload the image.');
-    } finally {
-      setUploadingImage(false);
-      // Allow picking the same file again after an error.
-      e.target.value = '';
-    }
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -226,9 +205,9 @@ export function ProductsManager({
             className="rounded-xl border border-[#cfe3d6] bg-white px-3 py-2 text-xs font-semibold text-[#112a1d] focus:border-[#1a663b] focus:outline-none cursor-pointer"
           >
             <option value="all">All Categories ({products.length})</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
+            {options.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.indentedLabel} ({counts.get(o.id)?.total ?? 0})
               </option>
             ))}
           </select>
@@ -305,8 +284,11 @@ export function ProductsManager({
 
                       {/* Category */}
                       <td className="py-3 px-3">
-                        <span className="rounded-lg bg-[#f0f7f2] px-2.5 py-1 font-bold text-[#14522f] capitalize">
-                          {p.category}
+                        <span
+                          className="inline-block rounded-lg bg-[#f0f7f2] px-2.5 py-1 font-bold text-[#14522f]"
+                          title={p.category}
+                        >
+                          {pathById.get(p.category) ?? p.category}
                         </span>
                       </td>
 
@@ -464,11 +446,14 @@ export function ProductsManager({
                 }
                 className="w-full rounded-xl border border-[#cfe3d6] bg-white px-3.5 py-2 text-xs focus:border-[#1a663b] focus:outline-none cursor-pointer"
               >
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
+                {options.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.path}
                   </option>
                 ))}
+                {formState.category && !pathById.has(formState.category) && (
+                  <option value={formState.category}>{formState.category} (missing)</option>
+                )}
               </select>
             </div>
           </div>
@@ -601,63 +586,11 @@ export function ProductsManager({
           </div>
 
           {/* Cloudinary Image Upload & Preview */}
-          <div className="rounded-2xl border border-[#dfece3] bg-[#f7faf8] p-4 space-y-3">
-            <label className="block text-xs font-bold text-[#112a1d]">
-              Product Image (Cloudinary or Direct URL)
-            </label>
-
-            <div className="flex flex-wrap items-center gap-4">
-              {formState.image ? (
-                <img
-                  src={formState.image}
-                  alt="Preview"
-                  className="w-20 h-20 rounded-xl object-cover border border-[#cfe3d6] bg-white"
-                />
-              ) : (
-                <div className="grid place-items-center w-20 h-20 rounded-xl bg-white border border-dashed border-[#cfe3d6] text-[#7a9485]">
-                  <ImageIcon className="w-6 h-6" />
-                </div>
-              )}
-
-              <div className="flex-1 space-y-2">
-                <div className="flex items-center gap-2">
-                  <label className="inline-flex items-center gap-1.5 rounded-xl bg-white border border-[#cfe3d6] px-3.5 py-2 text-xs font-bold text-[#14522f] hover:bg-[#e8f5ee] transition cursor-pointer">
-                    {uploadingImage ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <UploadCloud className="w-3.5 h-3.5 text-[#1a663b]" />
-                    )}
-                    <span>
-                      {uploadingImage ? 'Uploading...' : 'Upload to Cloudinary'}
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/avif,image/gif"
-                      disabled={uploadingImage}
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                  </label>
-                  <span className="text-[11px] text-[#5a7165]">or paste URL below</span>
-                </div>
-                {uploadError && (
-                  <p role="alert" className="text-[11px] font-semibold text-red-700">
-                    {uploadError}
-                  </p>
-                )}
-
-                <input
-                  type="url"
-                  value={formState.image || ''}
-                  onChange={(e) =>
-                    setFormState({ ...formState, image: e.target.value })
-                  }
-                  placeholder="https://images.unsplash.com/... or Cloudinary URL"
-                  className="w-full rounded-xl border border-[#cfe3d6] bg-white px-3 py-1.5 text-xs focus:border-[#1a663b] focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
+          <ImageUploadField
+            label="Product Image (Cloudinary or Direct URL)"
+            value={formState.image || ''}
+            onChange={(image) => setFormState((prev) => ({ ...prev, image }))}
+          />
 
           <div className="flex items-center gap-6 pt-2">
             <label className="flex items-center gap-2 text-xs font-bold text-[#112a1d] cursor-pointer">

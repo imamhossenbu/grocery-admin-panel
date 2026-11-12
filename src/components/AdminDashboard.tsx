@@ -113,7 +113,11 @@ export function AdminDashboard({ account }: { account?: React.ReactNode }) {
     fetchCloudStore();
   }, [fetchCloudStore]);
 
-  const sendAction = async (action: string, payload: unknown, successMsg: string) => {
+  const sendAction = async (
+    action: string,
+    payload: unknown,
+    successMsg: string
+  ): Promise<boolean> => {
     try {
       const res = await fetch('/api/store', {
         method: 'POST',
@@ -123,20 +127,22 @@ export function AdminDashboard({ account }: { account?: React.ReactNode }) {
       if (res.status === 401 || res.status === 403) {
         pushToast('Session expired', 'Please sign in again.', 'error');
         redirectToLogin();
-        return;
+        return false;
       }
       if (res.ok) {
         const data = await res.json();
         if (data.db) setDb(data.db);
         setLoadError(null);
         pushToast(successMsg, 'Saved to the database.');
-      } else {
-        const error = await readApiError(res);
-        if (error.code === 'DATABASE_NOT_READY') setLoadError(error);
-        pushToast('Action failed', error.message, 'error');
+        return true;
       }
+      const error = await readApiError(res);
+      if (error.code === 'DATABASE_NOT_READY') setLoadError(error);
+      pushToast('Action failed', error.message, 'error');
+      return false;
     } catch {
       pushToast('Network Error', 'Could not reach server API.', 'error');
+      return false;
     }
   };
 
@@ -189,16 +195,38 @@ export function AdminDashboard({ account }: { account?: React.ReactNode }) {
     await sendAction('DELETE_ORDER', { id }, 'Order record deleted.');
   };
 
-  const handleSaveCategory = async (category: Category) => {
-    await sendAction(
+  /** Resolves true when the server accepted the change. */
+  const handleSaveCategory = async (category: Category, isNew: boolean) => {
+    return sendAction(
       'SAVE_CATEGORY',
-      category,
+      {
+        id: category.id,
+        name: category.name,
+        blurb: category.blurb,
+        image: category.image,
+        description: category.description ?? '',
+        parentId: category.parentId ?? null,
+        isNew,
+      },
       `Category "${category.name}" saved.`
     );
   };
 
+  /** Sends only id/name/parentId so a move never overwrites other fields. */
+  const handleMoveCategory = async (category: Category, parentId: string | null) => {
+    return sendAction(
+      'SAVE_CATEGORY',
+      { id: category.id, name: category.name, parentId, isNew: false },
+      `Category "${category.name}" moved.`
+    );
+  };
+
+  const handleReorderCategories = async (parentId: string | null, ids: string[]) => {
+    return sendAction('REORDER_CATEGORIES', { parentId, ids }, 'Category order updated.');
+  };
+
   const handleDeleteCategory = async (id: string) => {
-    await sendAction('DELETE_CATEGORY', { id }, 'Category deleted.');
+    return sendAction('DELETE_CATEGORY', { id }, 'Category deleted.');
   };
 
   const handleSaveCoupon = async (coupon: Coupon) => {
@@ -358,6 +386,8 @@ export function AdminDashboard({ account }: { account?: React.ReactNode }) {
             categories={db.categories}
             products={db.products}
             onSaveCategory={handleSaveCategory}
+            onReorderCategories={handleReorderCategories}
+            onMoveCategory={handleMoveCategory}
             onDeleteCategory={handleDeleteCategory}
           />
         )}

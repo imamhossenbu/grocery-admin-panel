@@ -18,6 +18,7 @@ import type {
 } from '@/types/store';
 import { PAYMENT_STATUSES } from '@/types/store';
 import { slugify } from './slug';
+import { MAX_CATEGORY_DEPTH, checkParent, type ParentCheck } from './category-tree';
 
 // ---------------------------------------------------------------------------
 // Server-only Postgres data layer for the admin panel.
@@ -122,6 +123,9 @@ interface CategoryRow {
   name: string;
   blurb: string;
   image: string;
+  parent_id: string | null;
+  description: string | null;
+  sort_order: Numeric | null;
 }
 
 interface ProductRow {
@@ -192,7 +196,7 @@ interface OrderRow {
 
 // Explicit column lists: `orders.access_token` (the guest order-page secret)
 // must never be sent to the browser, so we do not `select('*')`.
-const CATEGORY_COLUMNS = 'id, name, blurb, image';
+const CATEGORY_COLUMNS = 'id, name, blurb, image, parent_id, description, sort_order';
 const PRODUCT_COLUMNS =
   'id, name, category, unit, price, old_price, description, image, images, badge, rating, review_count, sku, stock, sold_count, featured, active, origin, nutrition, tags, created_at, updated_at';
 const COUPON_COLUMNS =
@@ -212,7 +216,15 @@ function optNum(value: unknown): number | undefined {
 }
 
 function categoryFromRow(row: CategoryRow): Category {
-  return { id: row.id, name: row.name, blurb: row.blurb, image: row.image };
+  return {
+    id: row.id,
+    name: row.name,
+    blurb: row.blurb ?? '',
+    image: row.image ?? '',
+    parentId: row.parent_id ?? null,
+    description: row.description ?? '',
+    sortOrder: num(row.sort_order),
+  };
 }
 
 function productFromRow(row: ProductRow): Product {
@@ -344,8 +356,21 @@ export interface ProductWrite {
 export interface CategoryWrite {
   id: string;
   name: string;
-  blurb: string;
-  image: string;
+  /** For every optional field: undefined = leave the stored value untouched. */
+  blurb?: string;
+  image?: string;
+  description?: string;
+  /** null = top level. */
+  parentId?: string | null;
+  /** true = must create (409 if the slug is taken); false = must update; undefined = upsert. */
+  isNew?: boolean;
+}
+
+export interface CategoryReorder {
+  /** The parent whose children are being reordered (null = top level). */
+  parentId: string | null;
+  /** Every child of that parent, in the new order. */
+  ids: string[];
 }
 
 export interface CouponWrite {
@@ -518,19 +543,179 @@ export async function deleteProduct(id: string): Promise<void> {
 // Categories
 // ---------------------------------------------------------------------------
 
+export const CATEGORY_CYCLE_MESSAGE =
+  'A category can’t be moved under itself or one of its subcategories.';
+export const CATEGORY_TOO_DEEP_MESSAGE = `Categories can be at most ${MAX_CATEGORY_DEPTH} levels deep.`;
+
+function categoryTreeError(reason: Exclude<ParentCheck, { ok: true }>['reason'], parentId: string) {
+  switch (reason) {
+    case 'SELF':
+    case 'CYCLE':
+      return new StoreError(400, 'CATEGORY_CYCLE', CATEGORY_CYCLE_MESSAGE);
+    case 'TOO_DEEP':
+      return new StoreError(400, 'CATEGORY_TOO_DEEP', CATEGORY_TOO_DEEP_MESSAGE);
+    case 'NOT_FOUND':
+      return new StoreError(
+        400,
+        'VALIDATION_ERROR',
+        `Parent category "${parentId}" does not exist. Refresh and pick another parent.`
+      );
+  }
+}
+
+/** Maps the tree trigger's exceptions (and parent FK failures) to clear messages. */
+function toCategoryError(error: PostgrestError, parentId?: string | null): StoreError {
+  const message = error.message ?? '';
+  if (/CATEGORY_CYCLE/.test(message) || /categories_not_own_parent/.test(message)) {
+    return new StoreError(400, 'CATEGORY_CYCLE', CATEGORY_CYCLE_MESSAGE);
+  }
+  if (/CATEGORY_TOO_DEEP/.test(message)) {
+    return new StoreError(400, 'CATEGORY_TOO_DEEP', CATEGORY_TOO_DEEP_MESSAGE);
+  }
+  if (error.code === '23503' && parentId) {
+    return categoryTreeError('NOT_FOUND', parentId);
+  }
+  return toStoreError(error);
+}
+
+type CategoryLinkRow = { id: string; parent_id: string | null; sort_order: Numeric | null };
+
+/** The (small) id/parent/sort table, used to validate tree changes before writing. */
+async function readCategoryLinks(): Promise<
+  { id: string; parentId: string | null; sortOrder: number }[]
+> {
+  const { data, error } = await getDb().from('categories').select('id, parent_id, sort_order');
+  if (error) throw toStoreError(error);
+  return ((data ?? []) as CategoryLinkRow[]).map((r) => ({
+    id: r.id,
+    parentId: r.parent_id ?? null,
+    sortOrder: num(r.sort_order),
+  }));
+}
+
+/** sort_order that puts a category after its future siblings. */
+function nextSortOrder(
+  links: { id: string; parentId: string | null; sortOrder: number }[],
+  parentId: string | null,
+  selfId: string
+): number {
+  const siblings = links.filter((l) => l.parentId === parentId && l.id !== selfId);
+  return siblings.length ? Math.max(...siblings.map((s) => s.sortOrder)) + 1 : 0;
+}
+
+/**
+ * Creates or updates a category. Only the fields present in `input` are
+ * written, so a partial save never wipes blurb/image/description/parent.
+ * A new category, or one moved to another parent, goes to the end of its
+ * sibling list.
+ */
 export async function saveCategory(input: CategoryWrite): Promise<void> {
-  // sort_order is deliberately not sent, so an existing category keeps its position.
-  const { error } = await getDb()
+  const db = getDb();
+  const links = await readCategoryLinks();
+  const existing = links.find((l) => l.id === input.id);
+
+  if (input.isNew === true && existing) {
+    throw new StoreError(
+      409,
+      'CONFLICT',
+      `A category with the slug "${input.id}" already exists. Choose another slug.`
+    );
+  }
+  if (input.isNew === false && !existing) {
+    throw new StoreError(404, 'NOT_FOUND', `Category "${input.id}" no longer exists. Refresh and try again.`);
+  }
+
+  const parentChanges =
+    input.parentId !== undefined && (existing?.parentId ?? null) !== input.parentId;
+  if (parentChanges && input.parentId) {
+    const check = checkParent(links, input.id, input.parentId);
+    if (!check.ok) throw categoryTreeError(check.reason, input.parentId);
+  }
+
+  const row: Record<string, unknown> = { name: input.name };
+  if (input.blurb !== undefined) row.blurb = input.blurb;
+  if (input.image !== undefined) row.image = input.image;
+  if (input.description !== undefined) row.description = input.description;
+  if (input.parentId !== undefined) row.parent_id = input.parentId;
+
+  if (existing) {
+    if (parentChanges) {
+      row.sort_order = nextSortOrder(links, input.parentId ?? null, input.id);
+    }
+    const { data, error } = await db
+      .from('categories')
+      .update(row)
+      .eq('id', input.id)
+      .select('id');
+    if (error) throw toCategoryError(error, input.parentId);
+    if (!data || data.length === 0) {
+      throw new StoreError(404, 'NOT_FOUND', `Category "${input.id}" no longer exists. Refresh and try again.`);
+    }
+    return;
+  }
+
+  row.sort_order = nextSortOrder(links, input.parentId ?? null, input.id);
+  const { error } = await db.from('categories').insert({ id: input.id, ...row });
+  if (!error) return;
+  if (error.code === '23505') {
+    throw new StoreError(
+      409,
+      'CONFLICT',
+      `A category with the slug "${input.id}" already exists. Choose another slug.`
+    );
+  }
+  throw toCategoryError(error, input.parentId);
+}
+
+/**
+ * Writes sort_order 0..n-1 for one complete sibling list in a single
+ * statement. Rejects the request if the list does not match the current
+ * children of `parentId` (someone else changed the tree meanwhile).
+ */
+export async function reorderCategories({ parentId, ids }: CategoryReorder): Promise<void> {
+  const db = getDb();
+  const { data, error } = await db.from('categories').select('id, name, parent_id');
+  if (error) throw toStoreError(error);
+  const rows = (data ?? []) as { id: string; name: string; parent_id: string | null }[];
+
+  if (parentId !== null && !rows.some((r) => r.id === parentId)) {
+    throw categoryTreeError('NOT_FOUND', parentId);
+  }
+  const current = rows.filter((r) => (r.parent_id ?? null) === parentId);
+  const wanted = new Set(ids);
+  if (current.length !== ids.length || current.some((r) => !wanted.has(r.id))) {
+    throw new StoreError(
+      409,
+      'CONFLICT',
+      'The category list changed since it was loaded. Refresh and try again.'
+    );
+  }
+
+  // An upsert with only (id, name, sort_order) updates just those columns of
+  // existing rows; `name` is included because the insert half of an upsert
+  // must satisfy NOT NULL. Every id was checked to exist above.
+  const nameById = new Map(current.map((r) => [r.id, r.name]));
+  const { error: writeError } = await db
     .from('categories')
     .upsert(
-      { id: input.id, name: input.name, blurb: input.blurb, image: input.image },
+      ids.map((id, index) => ({ id, name: nameById.get(id)!, sort_order: index })),
       { onConflict: 'id' }
     );
-  if (error) throw toStoreError(error);
+  if (writeError) throw toCategoryError(writeError);
 }
 
 export async function deleteCategory(id: string): Promise<void> {
   const db = getDb();
+
+  // categories.parent_id is ON DELETE RESTRICT: check children first so the
+  // message can say what is in the way.
+  const children = await db
+    .from('categories')
+    .select('id', { count: 'exact', head: true })
+    .eq('parent_id', id);
+  if (children.error) throw toStoreError(children.error);
+  if (children.count) throw subcategoriesInTheWay(children.count);
+
   const { error } = await db.from('categories').delete().eq('id', id);
   if (!error) return;
 
@@ -540,6 +725,14 @@ export async function deleteCategory(id: string): Promise<void> {
       .from('products')
       .select('id', { count: 'exact', head: true })
       .eq('category', id);
+    if (!count) {
+      // Not products, so a subcategory was added in the meantime.
+      const again = await db
+        .from('categories')
+        .select('id', { count: 'exact', head: true })
+        .eq('parent_id', id);
+      if (again.count) throw subcategoriesInTheWay(again.count);
+    }
     const what =
       count === 1 ? 'the 1 product' : count ? `the ${count} products` : 'the products';
     throw new StoreError(
@@ -549,6 +742,16 @@ export async function deleteCategory(id: string): Promise<void> {
     );
   }
   throw toStoreError(error);
+}
+
+function subcategoriesInTheWay(count: number): StoreError {
+  return new StoreError(
+    409,
+    'CATEGORY_HAS_CHILDREN',
+    count === 1
+      ? 'Move or delete its 1 subcategory first.'
+      : `Move or delete its ${count} subcategories first.`
+  );
 }
 
 // ---------------------------------------------------------------------------
