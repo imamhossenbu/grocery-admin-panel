@@ -1,146 +1,194 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { readCloudStore, writeCloudStore } from '@/lib/supabase-db';
-import { INITIAL_STORE_DATA } from '@/lib/seed-data';
-import { Category, Coupon, OrderStatus, Product } from '@/types/store';
+import { requireAdmin } from '@/lib/auth';
+import { revalidateStorefront } from '@/lib/revalidate-storefront';
+import { NextResponse } from 'next/server';
+import {
+  StoreError,
+  deleteCategory,
+  deleteCoupon,
+  deleteOrder,
+  deleteProduct,
+  deleteProducts,
+  deleteReview,
+  insertProduct,
+  markOrderRefunded,
+  productExists,
+  reorderCategories,
+  saveCategory,
+  saveCoupon,
+  setOrderStatus,
+  setOrdersStatus,
+  setProductActive,
+  setProductsActive,
+  setProductsCategory,
+  setReviewApproved,
+  setProductFeatured,
+  setProductStock,
+  updateProduct,
+} from '@/lib/supabase-db';
+import {
+  asPayload,
+  parseBulkActive,
+  parseBulkCategory,
+  parseBulkOrderStatus,
+  parseCategory,
+  parseCategoryReorder,
+  parseCoupon,
+  parseId,
+  parseIdList,
+  parseOrderStatus,
+  parseProduct,
+  parseQuickStock,
+  parseReviewId,
+  parseReviewModeration,
+  parseToggle,
+} from '@/lib/store-validation';
 
-export async function GET() {
-  try {
-    const db = await readCloudStore();
-    return NextResponse.json(db, {
-      headers: {
-        'Cache-Control': 'no-store, max-age=0',
-      },
-    });
-  } catch (err) {
+/** What an action reports back (e.g. the id of a newly created product). */
+type ActionResult = { id?: string; count?: number } | void;
+
+/** Actions that cannot change anything the storefront shows. */
+const NO_STOREFRONT_IMPACT = new Set(['MARK_ORDER_REFUNDED', 'DELETE_ORDER']);
+
+const NO_STORE = { 'Cache-Control': 'no-store, max-age=0' };
+
+/** Every failure leaves the API as `{ error: CODE, message: human text }`. */
+function errorResponse(err: unknown) {
+  if (err instanceof StoreError) {
     return NextResponse.json(
-      { error: 'Failed to fetch store database', details: String(err) },
-      { status: 500 }
+      { error: err.code, message: err.message },
+      { status: err.status, headers: NO_STORE }
     );
   }
+  console.error('[api/store] unexpected error:', err);
+  return NextResponse.json(
+    { error: 'INTERNAL_ERROR', message: 'Something went wrong on the server. Please try again.' },
+    { status: 500, headers: NO_STORE }
+  );
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { action, payload } = body;
-    const db = await readCloudStore();
-
-    switch (action) {
-      case 'SAVE_PRODUCT': {
-        const product = payload as Product;
-        const exists = db.products.some((p) => p.id === product.id);
-        const products = exists
-          ? db.products.map((p) => (p.id === product.id ? product : p))
-          : [product, ...db.products];
-        const updated = await writeCloudStore({ ...db, products });
-        return NextResponse.json({ success: true, db: updated });
+/** Runs one targeted row operation. Throws a StoreError on bad input. */
+async function runAction(action: unknown, rawPayload: unknown): Promise<ActionResult> {
+  switch (action) {
+    case 'SAVE_PRODUCT': {
+      const payload = asPayload(rawPayload);
+      const product = parseProduct(payload);
+      const id = typeof payload.id === 'string' ? payload.id.trim() : '';
+      // The UI says whether this is a new product. Without the flag, fall
+      // back to "update if the id exists, otherwise create".
+      const isNew =
+        typeof payload.isNew === 'boolean' ? payload.isNew : !id || !(await productExists(id));
+      if (isNew) {
+        return { id: await insertProduct(product, id) };
       }
-
-      case 'DELETE_PRODUCT': {
-        const { id } = payload as { id: string };
-        const products = db.products.filter((p) => p.id !== id);
-        const updated = await writeCloudStore({ ...db, products });
-        return NextResponse.json({ success: true, db: updated });
-      }
-
-      case 'TOGGLE_PRODUCT_ACTIVE': {
-        const { id, active } = payload as { id: string; active: boolean };
-        const products = db.products.map((p) =>
-          p.id === id ? { ...p, active } : p
-        );
-        const updated = await writeCloudStore({ ...db, products });
-        return NextResponse.json({ success: true, db: updated });
-      }
-
-      case 'TOGGLE_PRODUCT_FEATURED': {
-        const { id, featured } = payload as { id: string; featured: boolean };
-        const products = db.products.map((p) =>
-          p.id === id ? { ...p, featured } : p
-        );
-        const updated = await writeCloudStore({ ...db, products });
-        return NextResponse.json({ success: true, db: updated });
-      }
-
-      case 'QUICK_STOCK_UPDATE': {
-        const { id, stock, price } = payload as {
-          id: string;
-          stock: number;
-          price?: number;
-        };
-        const products = db.products.map((p) =>
-          p.id === id
-            ? { ...p, stock, ...(price !== undefined ? { price } : {}) }
-            : p
-        );
-        const updated = await writeCloudStore({ ...db, products });
-        return NextResponse.json({ success: true, db: updated });
-      }
-
-      case 'SAVE_CATEGORY': {
-        const category = payload as Category;
-        const exists = db.categories.some((c) => c.id === category.id);
-        const categories = exists
-          ? db.categories.map((c) => (c.id === category.id ? category : c))
-          : [...db.categories, category];
-        const updated = await writeCloudStore({ ...db, categories });
-        return NextResponse.json({ success: true, db: updated });
-      }
-
-      case 'DELETE_CATEGORY': {
-        const { id } = payload as { id: string };
-        const categories = db.categories.filter((c) => c.id !== id);
-        const updated = await writeCloudStore({ ...db, categories });
-        return NextResponse.json({ success: true, db: updated });
-      }
-
-      case 'UPDATE_ORDER_STATUS': {
-        const { id, status } = payload as { id: string; status: OrderStatus };
-        const orders = db.orders.map((o) =>
-          o.id === id ? { ...o, status } : o
-        );
-        const updated = await writeCloudStore({ ...db, orders });
-        return NextResponse.json({ success: true, db: updated });
-      }
-
-      case 'DELETE_ORDER': {
-        const { id } = payload as { id: string };
-        const orders = db.orders.filter((o) => o.id !== id);
-        const updated = await writeCloudStore({ ...db, orders });
-        return NextResponse.json({ success: true, db: updated });
-      }
-
-      case 'SAVE_COUPON': {
-        const coupon = payload as Coupon;
-        const codeUpper = coupon.code.trim().toUpperCase();
-        const normalized = { ...coupon, code: codeUpper };
-        const exists = db.coupons.some((c) => c.code === codeUpper);
-        const coupons = exists
-          ? db.coupons.map((c) => (c.code === codeUpper ? normalized : c))
-          : [...db.coupons, normalized];
-        const updated = await writeCloudStore({ ...db, coupons });
-        return NextResponse.json({ success: true, db: updated });
-      }
-
-      case 'DELETE_COUPON': {
-        const { code } = payload as { code: string };
-        const coupons = db.coupons.filter((c) => c.code !== code);
-        const updated = await writeCloudStore({ ...db, coupons });
-        return NextResponse.json({ success: true, db: updated });
-      }
-
-      case 'RESET_DEMO_DATA': {
-        const updated = await writeCloudStore(INITIAL_STORE_DATA);
-        return NextResponse.json({ success: true, db: updated });
-      }
-
-      default:
-        return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+      if (!id) throw new StoreError(400, 'VALIDATION_ERROR', 'Product id is required.');
+      await updateProduct(id, product);
+      return { id };
     }
-  } catch (err) {
-    return NextResponse.json(
-      { error: 'Admin action failed', details: String(err) },
-      { status: 500 }
-    );
+
+    case 'BULK_SET_PRODUCTS_ACTIVE': {
+      const { ids, active } = parseBulkActive(asPayload(rawPayload));
+      return { count: await setProductsActive(ids, active) };
+    }
+
+    case 'BULK_SET_PRODUCTS_CATEGORY': {
+      const { ids, category } = parseBulkCategory(asPayload(rawPayload));
+      return { count: await setProductsCategory(ids, category) };
+    }
+
+    case 'BULK_DELETE_PRODUCTS':
+      return { count: await deleteProducts(parseIdList(asPayload(rawPayload), 'ids', 'Product ids')) };
+
+    case 'DELETE_PRODUCT':
+      return deleteProduct(parseId(asPayload(rawPayload), 'id', 'Product id'));
+
+    case 'TOGGLE_PRODUCT_ACTIVE': {
+      const { id, value } = parseToggle(asPayload(rawPayload), 'active');
+      return setProductActive(id, value);
+    }
+
+    case 'TOGGLE_PRODUCT_FEATURED': {
+      const { id, value } = parseToggle(asPayload(rawPayload), 'featured');
+      return setProductFeatured(id, value);
+    }
+
+    case 'QUICK_STOCK_UPDATE': {
+      const { id, stock, price } = parseQuickStock(asPayload(rawPayload));
+      return setProductStock(id, stock, price);
+    }
+
+    case 'SAVE_CATEGORY':
+      return saveCategory(parseCategory(asPayload(rawPayload)));
+
+    case 'REORDER_CATEGORIES':
+      return reorderCategories(parseCategoryReorder(asPayload(rawPayload)));
+
+    case 'DELETE_CATEGORY':
+      return deleteCategory(parseId(asPayload(rawPayload), 'id', 'Category id'));
+
+    case 'UPDATE_ORDER_STATUS': {
+      const { id, status } = parseOrderStatus(asPayload(rawPayload));
+      return setOrderStatus(id, status);
+    }
+
+    case 'BULK_UPDATE_ORDER_STATUS': {
+      const { ids, status } = parseBulkOrderStatus(asPayload(rawPayload));
+      return { count: await setOrdersStatus(ids, status) };
+    }
+
+    case 'MARK_ORDER_REFUNDED':
+      return markOrderRefunded(parseId(asPayload(rawPayload), 'id', 'Order id'));
+
+    case 'SET_REVIEW_APPROVED': {
+      const { id, approved } = parseReviewModeration(asPayload(rawPayload));
+      return setReviewApproved(id, approved);
+    }
+
+    case 'DELETE_REVIEW':
+      return deleteReview(parseReviewId(asPayload(rawPayload)));
+
+    case 'REVALIDATE_STOREFRONT':
+      // Nothing to write: the revalidation below is the whole action.
+      return;
+
+    case 'DELETE_ORDER':
+      return deleteOrder(parseId(asPayload(rawPayload), 'id', 'Order id'));
+
+    case 'SAVE_COUPON':
+      return saveCoupon(parseCoupon(asPayload(rawPayload)));
+
+    case 'DELETE_COUPON':
+      return deleteCoupon(parseId(asPayload(rawPayload), 'code', 'Coupon code'));
+
+    default:
+      throw new StoreError(
+        400,
+        'UNKNOWN_ACTION',
+        `Unknown action${typeof action === 'string' ? ` "${action}"` : ''}.`
+      );
   }
 }
 
+export async function POST(req: Request) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+  try {
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      throw new StoreError(400, 'VALIDATION_ERROR', 'Request body must be valid JSON.');
+    }
+    const { action, payload } = asPayload(body);
+
+    const result = await runAction(action, payload);
+    if (typeof action === 'string' && !NO_STOREFRONT_IMPACT.has(action)) {
+      await revalidateStorefront();
+    }
+
+    // The panel re-reads what it shows through its server components
+    // (router.refresh()), so the response only carries the action's result.
+    return NextResponse.json({ success: true, result: result ?? null }, { headers: NO_STORE });
+  } catch (err) {
+    return errorResponse(err);
+  }
+}
