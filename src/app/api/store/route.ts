@@ -1,6 +1,6 @@
 import { requireAdmin } from '@/lib/auth';
 import { revalidateStorefront } from '@/lib/revalidate-storefront';
-import { NextResponse, connection } from 'next/server';
+import { NextResponse } from 'next/server';
 import {
   StoreError,
   deleteCategory,
@@ -12,7 +12,6 @@ import {
   insertProduct,
   markOrderRefunded,
   productExists,
-  readStore,
   reorderCategories,
   saveCategory,
   saveCoupon,
@@ -65,20 +64,6 @@ function errorResponse(err: unknown) {
     { error: 'INTERNAL_ERROR', message: 'Something went wrong on the server. Please try again.' },
     { status: 500, headers: NO_STORE }
   );
-}
-
-export async function GET() {
-  // Always read live data: never prerender or cache this response.
-  await connection();
-  // Defence in depth: proxy.ts already blocks non-admins, but this route
-  // must never rely on that alone.
-  const auth = await requireAdmin();
-  if (!auth.ok) return auth.response;
-  try {
-    return NextResponse.json(await readStore(), { headers: NO_STORE });
-  } catch (err) {
-    return errorResponse(err);
-  }
 }
 
 /** Runs one targeted row operation. Throws a StoreError on bad input. */

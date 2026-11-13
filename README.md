@@ -49,7 +49,7 @@ In the `grocery-store` repo:
 npm run db:migrate
 ```
 
-Until step 2 is done, `GET /api/store` answers `503 { "error": "DATABASE_NOT_READY", ... }` and the admin panel shows a "Database is not set up yet" notice instead of any data.
+Until step 2 is done, the admin panel shows a "Database is not set up yet" notice instead of any data.
 
 ### 4. Create the first admin (once)
 ```bash
@@ -77,11 +77,9 @@ Open [http://localhost:3001](http://localhost:3001) and sign in with the admin a
 
 ## API
 
-`GET /api/store` returns `{ categories, products, coupons, orders, updatedAt }`.
+`POST /api/store` takes `{ action, payload }` and returns `{ success: true, result }` (the pages re-read their data through server components). Main actions: `SAVE_PRODUCT`, `DELETE_PRODUCT`, `TOGGLE_PRODUCT_ACTIVE`, `TOGGLE_PRODUCT_FEATURED`, `QUICK_STOCK_UPDATE`, `SAVE_CATEGORY`, `DELETE_CATEGORY`, `UPDATE_ORDER_STATUS`, `DELETE_ORDER`, `SAVE_COUPON`, `DELETE_COUPON`.
 
-`POST /api/store` takes `{ action, payload }` and returns `{ success: true, db }` with the fresh data. Actions: `SAVE_PRODUCT`, `DELETE_PRODUCT`, `TOGGLE_PRODUCT_ACTIVE`, `TOGGLE_PRODUCT_FEATURED`, `QUICK_STOCK_UPDATE`, `SAVE_CATEGORY`, `DELETE_CATEGORY`, `UPDATE_ORDER_STATUS`, `DELETE_ORDER`, `SAVE_COUPON`, `DELETE_COUPON`.
-
-Both routes (and `POST /api/upload`) require an admin session cookie: without one they answer `401 { "error": "UNAUTHENTICATED" }`, and for a signed-in non-admin `403 { "error": "FORBIDDEN" }`. The admin UI sends you to `/login` when it sees either.
+It (and `POST /api/upload`) requires an admin session cookie: without one it answers `401 { "error": "UNAUTHENTICATED" }`, and for a signed-in non-admin `403 { "error": "FORBIDDEN" }`. The admin UI sends you to `/login` when it sees either.
 
 Errors come back as `{ error: "CODE", message: "text shown to the admin" }` with status 400 (invalid input), 404 (row no longer exists), 409 (for example, deleting a category that still has products) or 503 (database not set up or unreachable).
 
