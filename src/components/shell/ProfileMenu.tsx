@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useTransition } from 'react';
-import { ChevronDown, ExternalLink, Keyboard, LogOut, Settings, ShieldCheck } from 'lucide-react';
+import { ChevronDown, ExternalLink, Keyboard, KeyRound, LogOut, Settings, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { signOut } from '@/actions/auth';
 import { Avatar } from '@/components/ui/Card';
@@ -15,9 +15,9 @@ import {
 } from '@/components/ui/DropdownMenu';
 import { Skeleton } from '@/components/ui/Skeleton';
 
-export function ProfileMenu({ email, storefrontUrl }: { email: string; storefrontUrl?: string }) {
+export function ProfileMenu({ email, name: fullName, storefrontUrl }: { email: string; name?: string | null; storefrontUrl?: string }) {
   const [pending, startTransition] = useTransition();
-  const name = email.split('@')[0] || 'Admin';
+  const name = fullName || email.split('@')[0] || 'Admin';
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -40,6 +40,11 @@ export function ProfileMenu({ email, storefrontUrl }: { email: string; storefron
           <ShieldCheck className="h-3.5 w-3.5" /> Administrator
         </div>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/profile">
+            <KeyRound /> Profile &amp; password
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/settings">
             <Settings /> Settings

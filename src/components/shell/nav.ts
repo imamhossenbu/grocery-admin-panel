@@ -7,6 +7,7 @@ import {
   ShoppingBag,
   Star,
   TicketPercent,
+  UserCog,
   Users,
   FolderTree,
   type LucideIcon,
@@ -86,7 +87,10 @@ export const NAV: NavGroup[] = [
   },
   {
     label: null,
-    items: [{ href: '/settings', label: 'Settings', icon: Settings, key: 's', keywords: 'store admins cache' }],
+    items: [
+      { href: '/profile', label: 'Profile', icon: UserCog, key: 'a', keywords: 'account password name me' },
+      { href: '/settings', label: 'Settings', icon: Settings, key: 's', keywords: 'store admins cache' },
+    ],
   },
 ];
 

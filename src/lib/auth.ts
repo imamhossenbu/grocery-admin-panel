@@ -11,6 +11,10 @@ export { ADMIN_ROLE, isAdminAppMetadata } from '@/lib/admin-role';
 export interface AdminUser {
   id: string;
   email: string;
+  /** user_metadata.full_name, set on the Profile page. */
+  name: string | null;
+  lastSignInAt: string | null;
+  createdAt: string | null;
 }
 
 type AdminCheck =
@@ -40,7 +44,17 @@ export async function checkAdmin(): Promise<AdminCheck> {
 
   if (!user) return { ok: false, status: 401 };
   if (!isAdminAppMetadata(user.app_metadata)) return { ok: false, status: 403 };
-  return { ok: true, admin: { id: user.id, email: user.email ?? '' } };
+  const fullName = typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name.trim() : '';
+  return {
+    ok: true,
+    admin: {
+      id: user.id,
+      email: user.email ?? '',
+      name: fullName || null,
+      lastSignInAt: user.last_sign_in_at ?? null,
+      createdAt: user.created_at ?? null,
+    },
+  };
 }
 
 const NO_STORE = { 'Cache-Control': 'no-store, max-age=0' };
