@@ -25,7 +25,7 @@ import {
 import { ORDER_STATUSES, type Order, type OrderStatus } from '@/types/store';
 import { cn } from '@/lib/cn';
 import { formatBDT } from '@/lib/format';
-import { formatDateTime, formatRelative } from '@/lib/dates';
+import { formatDateTime } from '@/lib/dates';
 import { formatAddress } from '@/lib/address';
 import { PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL, STATUS_META, itemCount, needsRefund, nextStatus } from '@/lib/order-meta';
 import { useStoreAction } from '@/lib/client/store-action';
@@ -37,6 +37,7 @@ import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import { riseChild, staggerParent } from '@/components/ui/motion';
 import { PaymentBadge, StatusBadge } from './OrderBadges';
+import { RelativeTime } from '@/components/ui/RelativeTime';
 
 function Row({ label, children, strong = false }: { label: React.ReactNode; children: React.ReactNode; strong?: boolean }) {
   return (
@@ -224,7 +225,7 @@ export function OrderDetailView({
               <StatusBadge status={order.status} size="md" />
               <PaymentBadge order={order} />
               <span>
-                Placed {formatDateTime(order.createdAt)} · {formatRelative(order.createdAt)}
+                Placed {formatDateTime(order.createdAt)} · {<RelativeTime value={order.createdAt} />}
               </span>
             </div>
           </div>
@@ -272,7 +273,7 @@ export function OrderDetailView({
           </div>
         )}
 
-        <motion.div variants={staggerParent} initial="initial" animate="animate" className="grid gap-6 xl:grid-cols-3">
+        <motion.div variants={staggerParent} initial="initial" animate="animate" className="grid grid-cols-1 gap-6 xl:grid-cols-3 [&>*]:min-w-0">
           <div className="space-y-6 xl:col-span-2">
             <motion.div variants={riseChild}>
               <Card>
@@ -330,7 +331,7 @@ export function OrderDetailView({
                           <div className="pt-1">
                             <p className="text-sm font-semibold text-ink">{e.status}</p>
                             <p className="tabular text-[13px] text-muted">
-                              {formatDateTime(e.at)} · {formatRelative(e.at)}
+                              {formatDateTime(e.at)} · {<RelativeTime value={e.at} />}
                             </p>
                           </div>
                         </li>

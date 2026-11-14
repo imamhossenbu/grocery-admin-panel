@@ -225,7 +225,7 @@ export function ProductForm({
         </div>
       )}
 
-      <motion.div variants={staggerParent} initial="initial" animate="animate" className="grid gap-6 xl:grid-cols-3">
+      <motion.div variants={staggerParent} initial="initial" animate="animate" className="grid grid-cols-1 gap-6 xl:grid-cols-3 [&>*]:min-w-0">
         <div className="space-y-6 xl:col-span-2">
           <motion.div variants={riseChild}>
             <Card>

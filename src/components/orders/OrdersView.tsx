@@ -9,7 +9,7 @@ import { ORDER_STATUSES, PAYMENT_STATUSES, type Order, type OrderStatus } from '
 import type { OrderFilters, OrdersPage } from '@/types/admin';
 import { cn } from '@/lib/cn';
 import { formatBDT } from '@/lib/format';
-import { formatDateTime, formatRelative } from '@/lib/dates';
+import { formatDateTime } from '@/lib/dates';
 import { formatLocality } from '@/lib/address';
 import { PAYMENT_STATUS_LABEL, STATUS_META, itemCount, nextStatus } from '@/lib/order-meta';
 import { useUrlState } from '@/lib/client/use-url-state';
@@ -37,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/DropdownMenu';
 import { PaymentBadge, StatusBadge } from './OrderBadges';
+import { RelativeTime } from '@/components/ui/RelativeTime';
 
 const col = createColumnHelper<Order>();
 const orderHref = (o: Order) => `/orders/${encodeURIComponent(o.id)}`;
@@ -106,7 +107,7 @@ export function OrdersView({ data, filters }: { data: OrdersPage; filters: Order
         cell: ({ getValue }) => (
           <Tooltip content={formatDateTime(getValue())}>
             <span className="tabular text-muted" tabIndex={0}>
-              {formatRelative(getValue())}
+              {<RelativeTime value={getValue()} />}
             </span>
           </Tooltip>
         ),
@@ -346,7 +347,7 @@ export function OrdersView({ data, filters }: { data: OrdersPage; filters: Order
                 <PaymentBadge order={o} compact />
                 <span className="tabular font-semibold text-ink">{formatBDT(o.total)}</span>
               </div>
-              <p className="text-[13px] text-muted">{formatRelative(o.createdAt)}</p>
+              <p className="text-[13px] text-muted">{<RelativeTime value={o.createdAt} />}</p>
             </div>
           )}
           footer={

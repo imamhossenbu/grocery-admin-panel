@@ -9,12 +9,12 @@ import { dialogVariants, overlayVariants } from '@/components/ui/motion';
 import { CornerDownLeft, Download, Keyboard, Package, PanelLeft, Plus, Search, ShoppingBag, TicketPercent, User } from 'lucide-react';
 import type { SearchResults } from '@/types/admin';
 import { formatBDT } from '@/lib/format';
-import { formatRelative } from '@/lib/dates';
 import { STATUS_META } from '@/lib/order-meta';
 import { Kbd, Thumb } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { NAV_ITEMS } from './nav';
 import { toggleSidebar } from './sidebar-state';
+import { RelativeTime } from '@/components/ui/RelativeTime';
 
 const itemClass =
   'flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-sm text-ink outline-none transition-colors data-[selected=true]:bg-mint data-[selected=true]:text-primary-600';
@@ -137,7 +137,7 @@ export function CommandPalette({ open, onOpenChange, onShowShortcuts }: { open: 
                       <span className="min-w-0 flex-1">
                         <span className="tabular block font-semibold">{o.id}</span>
                         <span className="block truncate text-[13px] text-muted">
-                          {o.name} · <span className="tabular">{o.phone}</span> · {formatRelative(o.createdAt)}
+                          {o.name} · <span className="tabular">{o.phone}</span> · {<RelativeTime value={o.createdAt} />}
                         </span>
                       </span>
                       <span className="text-right">

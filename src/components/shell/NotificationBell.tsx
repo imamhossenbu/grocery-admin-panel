@@ -5,12 +5,12 @@ import Link from 'next/link';
 import { Bell, CreditCard, Banknote, Inbox } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { formatBDT } from '@/lib/format';
-import { formatRelative } from '@/lib/dates';
 import { STATUS_META } from '@/lib/order-meta';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/Popover';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { usePulse } from './PulseProvider';
+import { RelativeTime } from '@/components/ui/RelativeTime';
 
 export function NotificationBell() {
   const { pulse, unread, ring, markSeen } = usePulse();
@@ -92,7 +92,7 @@ export function NotificationBell() {
                     <span className="block text-xs font-semibold" style={{ color: STATUS_META[o.status].color }}>
                       {STATUS_META[o.status].short}
                     </span>
-                    <span className="block text-[13px] text-subtle">{formatRelative(o.createdAt)}</span>
+                    <span className="block text-[13px] text-subtle">{<RelativeTime value={o.createdAt} />}</span>
                   </span>
                 </Link>
               </li>

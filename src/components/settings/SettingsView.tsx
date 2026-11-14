@@ -5,12 +5,13 @@ import { motion } from 'motion/react';
 import { Database, ExternalLink, Globe, RefreshCw, ShieldCheck, Store, Truck } from 'lucide-react';
 import type { AdminAccountRow } from '@/types/admin';
 import { formatBDT, formatNumber } from '@/lib/format';
-import { formatDateTime, formatRelative } from '@/lib/dates';
+import { formatDateTime } from '@/lib/dates';
 import { useStoreAction } from '@/lib/client/store-action';
 import { Avatar, Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { riseChild, staggerParent } from '@/components/ui/motion';
+import { RelativeTime } from '@/components/ui/RelativeTime';
 
 export interface StoreInfo {
   storefrontUrl: string | null;
@@ -92,7 +93,7 @@ export function SettingsView({ info, admins, currentEmail }: { info: StoreInfo; 
                       {a.email === currentEmail && <Badge tone="emerald">You</Badge>}
                     </p>
                     <p className="text-[13px] text-muted">
-                      Added {formatDateTime(a.createdAt)} · last sign-in {a.lastSignInAt ? formatRelative(a.lastSignInAt) : 'never'}
+                      Added {formatDateTime(a.createdAt)} · last sign-in {a.lastSignInAt ? <RelativeTime value={a.lastSignInAt} /> : 'never'}
                     </p>
                   </div>
                 </li>

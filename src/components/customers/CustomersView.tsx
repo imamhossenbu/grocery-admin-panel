@@ -7,7 +7,7 @@ import { createColumnHelper } from '@tanstack/react-table';
 import { Users } from 'lucide-react';
 import type { CustomerFilters, CustomerRow, Paged } from '@/types/admin';
 import { formatBDT, formatNumber } from '@/lib/format';
-import { formatDate, formatRelative } from '@/lib/dates';
+import { formatDate } from '@/lib/dates';
 import { formatLocality } from '@/lib/address';
 import { useUrlState } from '@/lib/client/use-url-state';
 import { DataTable } from '@/components/ui/DataTable';
@@ -16,6 +16,7 @@ import { SearchInput } from '@/components/ui/Input';
 import { Pagination } from '@/components/ui/Pagination';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Avatar, Kbd } from '@/components/ui/Card';
+import { RelativeTime } from '@/components/ui/RelativeTime';
 
 const col = createColumnHelper<CustomerRow>();
 const href = (c: CustomerRow) => `/customers/${c.id}`;
@@ -78,7 +79,7 @@ export function CustomersView({
         id: 'last_order',
         header: 'Last order',
         meta: { label: 'Last order', skeleton: 'text', sortDescFirst: true },
-        cell: ({ getValue }) => <span className="tabular whitespace-nowrap text-muted">{getValue() ? formatRelative(getValue()) : 'Never'}</span>,
+        cell: ({ getValue }) => <span className="tabular whitespace-nowrap text-muted">{getValue() ? <RelativeTime value={getValue()!} /> : 'Never'}</span>,
       }),
       col.accessor('joinedAt', {
         id: 'joined',

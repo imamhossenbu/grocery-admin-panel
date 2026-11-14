@@ -9,7 +9,7 @@ import type { Order } from '@/types/store';
 import type { CustomerDetail } from '@/types/admin';
 import { cn } from '@/lib/cn';
 import { formatBDT, formatNumber } from '@/lib/format';
-import { formatDate, formatDateTime, formatRelative } from '@/lib/dates';
+import { formatDate, formatDateTime } from '@/lib/dates';
 import { itemCount } from '@/lib/order-meta';
 import { Avatar, Card, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -19,6 +19,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { CountUp } from '@/components/ui/CountUp';
 import { riseChild, staggerParent } from '@/components/ui/motion';
 import { PaymentBadge, StatusBadge } from '@/components/orders/OrderBadges';
+import { RelativeTime } from '@/components/ui/RelativeTime';
 
 const col = createColumnHelper<Order>();
 const ORDERS_PAGE = 10;
@@ -118,7 +119,7 @@ export function CustomerDetailView({ data }: { data: CustomerDetail }) {
         ))}
       </motion.div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3 [&>*]:min-w-0">
         <div className="space-y-6 xl:col-span-2">
           <DataTable
             tableId="customer-orders"
@@ -149,7 +150,7 @@ export function CustomerDetailView({ data }: { data: CustomerDetail }) {
                           {r.productName}
                         </Link>
                         {!r.approved && <Badge tone="gray">Hidden</Badge>}
-                        <span className="ml-auto text-[13px] text-muted">{formatRelative(r.createdAt)}</span>
+                        <span className="ml-auto text-[13px] text-muted">{<RelativeTime value={r.createdAt} />}</span>
                       </div>
                       {r.comment && <p className="mt-2 max-w-[75ch] text-sm leading-relaxed text-ink-2">{r.comment}</p>}
                     </li>
@@ -174,7 +175,7 @@ export function CustomerDetailView({ data }: { data: CustomerDetail }) {
             </div>
             <div>
               <dt className="text-[13px] text-muted">Last order</dt>
-              <dd className="text-ink">{c.lastOrderAt ? `${formatDateTime(c.lastOrderAt)} (${formatRelative(c.lastOrderAt)})` : 'Never'}</dd>
+              <dd className="text-ink">{c.lastOrderAt ? <>{formatDateTime(c.lastOrderAt)} (<RelativeTime value={c.lastOrderAt} />)</> : 'Never'}</dd>
             </div>
             <div>
               <dt className="text-[13px] text-muted">Last sign-in</dt>

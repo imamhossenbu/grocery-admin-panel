@@ -49,7 +49,7 @@ function StockCell({ product, onCommit }: { product: Product; onCommit: (stock: 
     <div className="flex items-center gap-2" data-no-row-click>
       <NumberInput
         inputSize="sm"
-        className={cn('w-28', product.stock <= 0 && '!border-red-300', low && '!border-amber-300')}
+        className={cn('w-20', product.stock <= 0 && '!border-red-300', low && '!border-amber-300')}
         value={value}
         min={0}
         max={1_000_000}
@@ -193,7 +193,7 @@ export function ProductsView({ data, filters }: { data: ProductsPage; filters: P
       col.accessor('stock', {
         id: 'stock',
         header: 'Stock',
-        meta: { label: 'Stock', skeleton: 'text', className: 'w-[170px]' },
+        meta: { label: 'Stock', skeleton: 'text', className: 'w-[136px]' },
         cell: ({ row }) => (
           <StockCell
             product={row.original}

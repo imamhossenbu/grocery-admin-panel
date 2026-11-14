@@ -26,7 +26,7 @@ import {
 import type { ActivityItem, OverviewData } from '@/types/admin';
 import { cn } from '@/lib/cn';
 import { formatBDT, formatNumber, formatPercent } from '@/lib/format';
-import { formatDayKey, formatRelative } from '@/lib/dates';
+import { formatDayKey } from '@/lib/dates';
 import { LOW_STOCK_THRESHOLD } from '@/lib/constants';
 import { useUrlState } from '@/lib/client/use-url-state';
 import { Card, CardHeader, Thumb } from '@/components/ui/Card';
@@ -39,6 +39,7 @@ import { riseChild, staggerParent } from '@/components/ui/motion';
 import { OverviewBodySkeleton } from '@/components/skeletons/OverviewSkeleton';
 import { PaymentBadge, StatusBadge } from '@/components/orders/OrderBadges';
 import { StatusDonut, TrendChart } from './Charts';
+import { RelativeTime } from '@/components/ui/RelativeTime';
 
 type Preset = 'today' | '7d' | '30d' | '90d' | 'custom';
 
@@ -196,7 +197,7 @@ export function OverviewView({ data }: { data: OverviewData }) {
           </motion.div>
 
           {/* Trend + status */}
-          <div className="grid items-stretch gap-6 xl:grid-cols-3">
+          <div className="grid grid-cols-1 items-stretch gap-6 xl:grid-cols-3 [&>*]:min-w-0">
             <Card className="flex h-full flex-col xl:col-span-2">
               <CardHeader
                 title={metric === 'revenue' ? 'Revenue' : 'Orders'}
@@ -257,7 +258,7 @@ export function OverviewView({ data }: { data: OverviewData }) {
           </div>
 
           {/* Lists */}
-          <div className="grid items-stretch gap-6 lg:grid-cols-3">
+          <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-3 [&>*]:min-w-0">
             <Card className="h-full">
               <CardHeader title="Top products" description="By revenue in this range" icon={<Flame className="h-[18px] w-[18px]" />} />
               {data.topProducts.length ? (
@@ -348,7 +349,7 @@ export function OverviewView({ data }: { data: OverviewData }) {
           </div>
 
           {/* Recent orders + activity */}
-          <div className="grid items-stretch gap-6 xl:grid-cols-3">
+          <div className="grid grid-cols-1 items-stretch gap-6 xl:grid-cols-3 [&>*]:min-w-0">
             <Card className="h-full xl:col-span-2">
               <CardHeader
                 title="Recent orders"
@@ -367,7 +368,7 @@ export function OverviewView({ data }: { data: OverviewData }) {
                         <span className="min-w-0 flex-1">
                           <span className="tabular block text-sm font-semibold text-ink">{o.id}</span>
                           <span className="block truncate text-[13px] text-muted">
-                            {o.customer.name} · {o.customer.area} · {formatRelative(o.createdAt)}
+                            {o.customer.name} · {o.customer.area} · {<RelativeTime value={o.createdAt} />}
                           </span>
                         </span>
                         <span className="hidden sm:block">
@@ -400,7 +401,7 @@ export function OverviewView({ data }: { data: OverviewData }) {
                             <span className="block truncate text-sm font-medium text-ink">{a.title}</span>
                             <span className="block truncate text-[13px] text-muted">
                               {a.detail ? `${a.detail} · ` : ''}
-                              {formatRelative(a.at)}
+                              {<RelativeTime value={a.at} />}
                             </span>
                           </span>
                         </>

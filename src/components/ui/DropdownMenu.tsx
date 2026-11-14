@@ -84,6 +84,7 @@ export function DropdownMenuItem({
   className = '',
   tone = 'default',
   shortcut,
+  children,
   ...props
 }: React.ComponentProps<typeof DM.Item> & { tone?: 'default' | 'danger'; shortcut?: React.ReactNode }) {
   return (
@@ -95,8 +96,15 @@ export function DropdownMenuItem({
       )}
       {...props}
     >
-      {props.children}
-      {shortcut && <span className="ml-auto pl-4 text-xs font-semibold text-subtle">{shortcut}</span>}
+      {/* asChild (e.g. a <Link>) needs exactly one child element to slot onto. */}
+      {props.asChild ? (
+        children
+      ) : (
+        <>
+          {children}
+          {shortcut && <span className="ml-auto pl-4 text-xs font-semibold text-subtle">{shortcut}</span>}
+        </>
+      )}
     </DM.Item>
   );
 }

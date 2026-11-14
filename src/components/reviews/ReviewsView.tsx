@@ -7,7 +7,7 @@ import { createColumnHelper } from '@tanstack/react-table';
 import { BadgeCheck, Eye, EyeOff, MoreHorizontal, Star, Trash2 } from 'lucide-react';
 import type { ReviewFilters, ReviewRow, ReviewsPage } from '@/types/admin';
 import { cn } from '@/lib/cn';
-import { formatDateTime, formatRelative } from '@/lib/dates';
+import { formatDateTime } from '@/lib/dates';
 import { useUrlState } from '@/lib/client/use-url-state';
 import { useStoreAction } from '@/lib/client/store-action';
 import { DataTable } from '@/components/ui/DataTable';
@@ -28,6 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/DropdownMenu';
+import { RelativeTime } from '@/components/ui/RelativeTime';
 
 const col = createColumnHelper<ReviewRow>();
 
@@ -124,7 +125,7 @@ export function ReviewsView({ data, filters }: { data: ReviewsPage; filters: Rev
         cell: ({ row }) => (
           <Tooltip content={formatDateTime(row.original.createdAt)}>
             <span tabIndex={0} className="tabular whitespace-nowrap text-muted">
-              {formatRelative(row.original.createdAt)}
+              {<RelativeTime value={row.original.createdAt} />}
             </span>
           </Tooltip>
         ),
@@ -273,7 +274,7 @@ export function ReviewsView({ data, filters }: { data: ReviewsPage; filters: Rev
                 </div>
                 <Comment text={r.comment} />
                 <p className="text-[13px] text-muted">
-                  {r.authorName} on {r.productName} · {formatRelative(r.createdAt)}
+                  {r.authorName} on {r.productName} · {<RelativeTime value={r.createdAt} />}
                 </p>
                 <div className="flex gap-2">
                   <Button variant={r.approved ? 'outline' : 'secondary'} size="sm" onClick={() => moderate(r, !r.approved)} disabled={busy}>

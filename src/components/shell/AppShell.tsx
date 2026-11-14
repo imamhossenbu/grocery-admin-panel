@@ -6,11 +6,19 @@ import { usePathname, useRouter } from 'next/navigation';
 /** Calls onChange when the path changes (inside Suspense: URL data). */
 function PathWatcher({ onChange }: { onChange: () => void }) {
   const pathname = usePathname();
-  const [prev, setPrev] = useState(pathname);
-  if (prev !== pathname) {
-    setPrev(pathname);
-    onChange();
-  }
+  const first = useRef(true);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
+  // After commit, not during render: onChange updates the parent's state.
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    onChangeRef.current();
+  }, [pathname]);
   return null;
 }
 import { MotionConfig } from 'motion/react';

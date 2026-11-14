@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, Inbox, Mail, MailOpen, MailWarning, Phone, Reply } from 'lucide-react';
 import type { ContactMessage, Paged } from '@/types/admin';
 import { cn } from '@/lib/cn';
-import { formatDateTime, formatRelative } from '@/lib/dates';
+import { formatDateTime } from '@/lib/dates';
 import { useUrlState } from '@/lib/client/use-url-state';
 import { useLocalStorage } from '@/lib/client/use-local-storage';
 import { postStoreAction, useStoreAction } from '@/lib/client/store-action';
@@ -17,6 +17,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { buttonClass } from '@/components/ui/Button';
+import { RelativeTime } from '@/components/ui/RelativeTime';
 
 export function MessagesView({
   data,
@@ -110,7 +111,7 @@ export function MessagesView({
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2">
                       <span className={cn('truncate text-sm text-ink', unread ? 'font-semibold' : 'font-medium')}>{m.name}</span>
-                      <span className="tabular shrink-0 text-[13px] text-muted">{formatRelative(m.createdAt)}</span>
+                      <span className="tabular shrink-0 text-[13px] text-muted">{<RelativeTime value={m.createdAt} />}</span>
                     </span>
                     <span className={cn('block truncate text-[13px]', unread ? 'font-medium text-ink' : 'text-muted')}>{m.subject || '(no subject)'}</span>
                     <span className="block truncate text-[13px] text-muted">{m.message}</span>
@@ -134,7 +135,7 @@ export function MessagesView({
   );
 
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-[minmax(320px,420px)_1fr]">
+    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(320px,420px)_1fr] [&>*]:min-w-0">
       {list}
       <div className={cn(!selected && 'hidden lg:block')}>
         <AnimatePresence mode="wait">

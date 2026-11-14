@@ -5,7 +5,7 @@ import { createColumnHelper } from '@tanstack/react-table';
 import { Download, Mail, Newspaper } from 'lucide-react';
 import type { Paged, Subscriber } from '@/types/admin';
 import { formatNumber } from '@/lib/format';
-import { formatDateTime, formatRelative } from '@/lib/dates';
+import { formatDateTime } from '@/lib/dates';
 import { useUrlState } from '@/lib/client/use-url-state';
 import { DataTable } from '@/components/ui/DataTable';
 import { SearchInput } from '@/components/ui/Input';
@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { buttonClass } from '@/components/ui/Button';
 import { Avatar, Kbd } from '@/components/ui/Card';
 import { CountUp } from '@/components/ui/CountUp';
+import { RelativeTime } from '@/components/ui/RelativeTime';
 
 const col = createColumnHelper<Subscriber>();
 
@@ -44,7 +45,7 @@ export function NewsletterView({
         meta: { label: 'Subscribed', skeleton: 'text' },
         cell: ({ getValue }) => (
           <span className="tabular whitespace-nowrap text-muted">
-            {formatDateTime(getValue())} · {formatRelative(getValue())}
+            {formatDateTime(getValue())} · {<RelativeTime value={getValue()} />}
           </span>
         ),
       }),
@@ -99,7 +100,7 @@ export function NewsletterView({
             <Mail className="h-4 w-4 text-muted" />
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-ink">{s.email}</p>
-              <p className="text-[13px] text-muted">{formatRelative(s.createdAt)}</p>
+              <p className="text-[13px] text-muted">{<RelativeTime value={s.createdAt} />}</p>
             </div>
           </div>
         )}

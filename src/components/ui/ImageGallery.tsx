@@ -182,7 +182,7 @@ export function ImageGallery({ value, onChange, max = 8, error }: { value: strin
           <SortableContext items={value} strategy={rectSortingStrategy}>
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" aria-label="Product images">
               {value.map((u, i) => (
-                <Tile key={u} url={u} index={i} count={value.length} onMove={move} onRemove={() => onChange(value.filter((x) => x !== u))} />
+                <Tile key={`${i}-${u}`} url={u} index={i} count={value.length} onMove={move} onRemove={() => onChange(value.filter((_, j) => j !== i))} />
               ))}
               {uploads.map((u) => (
                 <li key={u.id} className="relative aspect-square overflow-hidden rounded-2xl border border-line">

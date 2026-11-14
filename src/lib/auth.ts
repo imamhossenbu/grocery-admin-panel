@@ -1,7 +1,7 @@
 import 'server-only';
 import { cache } from 'react';
 import { redirect } from 'next/navigation';
-import { NextResponse } from 'next/server';
+import { NextResponse, connection } from 'next/server';
 import type { User } from '@supabase/supabase-js';
 import { supabaseServer } from '@/lib/supabase/server';
 import { isAdminAppMetadata } from '@/lib/admin-role';
@@ -25,6 +25,10 @@ type AdminCheck =
  * once instead of when the access token expires.
  */
 export async function checkAdmin(): Promise<AdminCheck> {
+  // Request-time only. Supabase's getUser() reads Date.now() (token expiry),
+  // which Cache Components rejects while prerendering; this keeps the auth
+  // check out of every prerender. Outside the try so its abort isn't swallowed.
+  await connection();
   let user: User | null = null;
   try {
     const supabase = await supabaseServer();
