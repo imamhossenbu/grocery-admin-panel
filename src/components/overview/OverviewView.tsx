@@ -274,7 +274,7 @@ export function OverviewView({ data }: { data: OverviewData }) {
                         </span>
                         <span className="text-right">
                           <span className="tabular block text-sm font-semibold text-ink">{formatBDT(p.revenue)}</span>
-                          <span className="tabular block text-xs text-muted">{formatNumber(p.qty)} sold</span>
+                          <span className="tabular block text-[13px] text-muted">{formatNumber(p.qty)} sold</span>
                         </span>
                       </Link>
                     </li>
@@ -327,7 +327,7 @@ export function OverviewView({ data }: { data: OverviewData }) {
                         <Thumb src={p.image} className="h-9 w-9" />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-medium text-ink">{p.name}</span>
-                          <span className="block text-xs text-muted">{p.unit}</span>
+                          <span className="block text-[13px] text-muted">{p.unit}</span>
                         </span>
                         <span
                           className={cn(

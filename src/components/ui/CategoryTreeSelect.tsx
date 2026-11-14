@@ -250,7 +250,7 @@ export function CategoryTreeSelect({
                 >
                   <Highlight text={c.name} query={query} />
                 </span>
-                {reason && <span className="block truncate text-xs text-muted">{reason}</span>}
+                {reason && <span className="block truncate text-[13px] text-muted">{reason}</span>}
               </span>
             </span>
             {total !== undefined && (

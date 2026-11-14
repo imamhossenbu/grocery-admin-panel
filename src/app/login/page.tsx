@@ -34,7 +34,7 @@ export default function LoginPage({
             <span className="font-display text-2xl font-bold tracking-tight text-[#112a1d]">
               Fresh<span className="text-[#1a663b]">Basket</span>
             </span>
-            <span className="rounded-full bg-[#1a663b] px-2 py-0.5 text-[10px] font-extrabold uppercase text-white">
+            <span className="rounded-full bg-[#1a663b] px-2 py-0.5 text-[11px] font-extrabold uppercase text-white">
               Admin
             </span>
           </div>
@@ -47,7 +47,7 @@ export default function LoginPage({
               <span className="text-[11px] font-extrabold uppercase tracking-wider">Staff only</span>
             </div>
             <h1 className="mt-1 font-display text-xl font-bold">Sign in to the admin panel</h1>
-            <p className="mt-1 text-xs text-white/70">Use the admin account created for you.</p>
+            <p className="mt-1 text-[13px] text-white/80">Use the admin account created for you.</p>
           </div>
 
           <div className="px-6 py-6">
@@ -57,7 +57,7 @@ export default function LoginPage({
           </div>
         </div>
 
-        <p className="mt-5 text-center text-xs text-[#5a7165]">
+        <p className="mt-5 text-center text-[13px] text-[#3f5649]">
           Customer accounts from the storefront cannot sign in here.
         </p>
       </div>

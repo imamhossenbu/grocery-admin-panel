@@ -21,7 +21,7 @@ export function EmptyState({ icon, title, description, actionLabel, onAction, ac
         <div className="relative grid h-14 w-14 place-items-center rounded-2xl border border-line bg-white text-primary shadow-soft">{icon}</div>
       </div>
       <h3 className="font-display text-lg font-semibold text-ink">{title}</h3>
-      <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted">{description}</p>
+      <p className="mt-1 max-w-sm text-[13px] leading-relaxed text-muted">{description}</p>
       {action ?? (actionLabel && onAction && (
         <Button variant="primary" size="sm" onClick={onAction} className="mt-5">
           {actionLabel}

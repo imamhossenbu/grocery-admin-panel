@@ -237,7 +237,7 @@ function useListbox<T extends string>({
           className="flex-1 overflow-y-auto p-1.5 outline-none"
         >
           {filtered.length === 0 && (
-            <li className="px-3 py-6 text-center text-xs text-muted" role="presentation">
+            <li className="px-3 py-6 text-center text-[13px] text-muted" role="presentation">
               {opts.emptyText ?? 'No matches'}
             </li>
           )}
@@ -274,9 +274,9 @@ function useListbox<T extends string>({
                 {o.icon && <span className="shrink-0 [&_svg]:h-4 [&_svg]:w-4">{o.icon}</span>}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{o.label}</span>
-                  {o.description && <span className="block truncate text-[11px] font-normal text-muted">{o.description}</span>}
+                  {o.description && <span className="block truncate text-xs font-normal text-muted">{o.description}</span>}
                 </span>
-                {o.meta && <span className="shrink-0 text-[11px] font-semibold text-subtle">{o.meta}</span>}
+                {o.meta && <span className="shrink-0 text-xs font-semibold text-subtle">{o.meta}</span>}
                 {!multiple && selected && <Check className="absolute right-2.5 h-4 w-4 text-primary" strokeWidth={2.5} />}
               </li>
             );

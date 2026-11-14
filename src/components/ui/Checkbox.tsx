@@ -35,7 +35,7 @@ export function Checkbox({
       <span className="mt-0.5">{box}</span>
       <span>
         <span className="block text-sm font-semibold text-ink">{label}</span>
-        {description && <span className="block text-xs text-muted">{description}</span>}
+        {description && <span className="block text-[13px] text-muted">{description}</span>}
       </span>
     </label>
   );
@@ -84,7 +84,7 @@ export function RadioGroup<T extends string>({
           </RR.Item>
           <span>
             <span className="block text-sm font-semibold text-ink">{o.label}</span>
-            {o.description && <span className="block text-xs text-muted">{o.description}</span>}
+            {o.description && <span className="block text-[13px] text-muted">{o.description}</span>}
           </span>
         </label>
       ))}
@@ -124,7 +124,7 @@ export function Switch({
     <label className="flex cursor-pointer items-start justify-between gap-4">
       <span>
         <span className="block text-sm font-semibold text-ink">{label}</span>
-        {description && <span className="block text-xs text-muted">{description}</span>}
+        {description && <span className="block text-[13px] text-muted">{description}</span>}
       </span>
       {control}
     </label>

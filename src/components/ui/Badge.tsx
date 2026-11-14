@@ -58,7 +58,7 @@ export function Badge({ tone, variant, dot = false, size = 'sm', children, class
     <span
       className={cn(
         'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full font-bold ring-1 ring-inset',
-        size === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs',
+        size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-[13px]',
         tones[t],
         className
       )}
@@ -78,7 +78,7 @@ export function CountPill({ children, tone = 'gray', className = '' }: { childre
     danger: 'bg-red-600 text-white',
   }[tone];
   return (
-    <span className={cn('inline-grid min-w-5 h-5 place-items-center rounded-full px-1.5 text-[10px] font-extrabold tabular', styles, className)}>
+    <span className={cn('inline-grid min-w-5 h-5 place-items-center rounded-full px-1.5 text-[11px] font-extrabold tabular', styles, className)}>
       {children}
     </span>
   );

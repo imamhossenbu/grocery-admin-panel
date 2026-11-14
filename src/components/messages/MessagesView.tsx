@@ -110,7 +110,7 @@ export function MessagesView({
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2">
                       <span className={cn('truncate text-sm text-ink', unread ? 'font-semibold' : 'font-medium')}>{m.name}</span>
-                      <span className="tabular shrink-0 text-xs text-muted">{formatRelative(m.createdAt)}</span>
+                      <span className="tabular shrink-0 text-[13px] text-muted">{formatRelative(m.createdAt)}</span>
                     </span>
                     <span className={cn('block truncate text-[13px]', unread ? 'font-medium text-ink' : 'text-muted')}>{m.subject || '(no subject)'}</span>
                     <span className="block truncate text-[13px] text-muted">{m.message}</span>

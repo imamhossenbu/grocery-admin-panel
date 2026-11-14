@@ -43,7 +43,7 @@ export function Tooltip({
           sideOffset={8}
           collisionPadding={8}
           className={cn(
-            'fb-pop z-[80] flex max-w-xs items-center gap-2 rounded-lg bg-forest px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-white shadow-pop',
+            'fb-pop z-[80] flex max-w-xs items-center gap-2 rounded-lg bg-forest px-2.5 py-1.5 text-xs font-semibold leading-snug text-white shadow-pop',
             className
           )}
         >

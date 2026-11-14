@@ -92,7 +92,7 @@ export function NotificationBell() {
                     <span className="block text-xs font-semibold" style={{ color: STATUS_META[o.status].color }}>
                       {STATUS_META[o.status].short}
                     </span>
-                    <span className="block text-xs text-subtle">{formatRelative(o.createdAt)}</span>
+                    <span className="block text-[13px] text-subtle">{formatRelative(o.createdAt)}</span>
                   </span>
                 </Link>
               </li>

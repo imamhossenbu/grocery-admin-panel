@@ -205,7 +205,7 @@ export function ImageGallery({ value, onChange, max = 8, error }: { value: strin
                   >
                     <ImagePlus className="h-6 w-6 text-primary" />
                     {isDragActive ? 'Drop images' : 'Add images'}
-                    <span className="text-xs text-subtle">or drop files here</span>
+                    <span className="text-[13px] text-subtle">or drop files here</span>
                   </button>
                 </li>
               )}

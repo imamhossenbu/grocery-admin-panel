@@ -75,7 +75,7 @@ export function TabsList<T extends string>({
               {t.count !== undefined && (
                 <span
                   className={cn(
-                    'tabular min-w-5 rounded-full px-1.5 py-px text-center text-[10px] font-extrabold transition-colors',
+                    'tabular min-w-5 rounded-full px-1.5 py-px text-center text-[11px] font-extrabold transition-colors',
                     t.tone === 'danger' && t.count > 0
                       ? 'bg-red-600 text-white'
                       : active
