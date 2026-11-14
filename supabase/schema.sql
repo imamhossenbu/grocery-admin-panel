@@ -162,6 +162,9 @@ create table if not exists contact_messages (
   created_at  timestamptz not null default now()
 );
 
+-- Admin inbox read state (null = unread). Added after launch.
+alter table contact_messages add column if not exists read_at timestamptz;
+
 -- ---------------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------------

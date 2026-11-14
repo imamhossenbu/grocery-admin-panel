@@ -209,6 +209,8 @@ export interface ContactMessage {
   subject: string;
   message: string;
   createdAt: string;
+  /** null = unread. Undefined when the read_at column is not migrated yet. */
+  readAt?: string | null;
 }
 
 export interface Subscriber {

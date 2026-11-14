@@ -889,30 +889,45 @@ function messageFromRow(m: Record<string, unknown>): ContactMessage {
     subject: String(m.subject ?? ''),
     message: String(m.message ?? ''),
     createdAt: String(m.created_at),
+    ...('read_at' in m ? { readAt: (m.read_at as string | null) ?? null } : {}),
   };
 }
 
-export async function listMessages(f: { q: string; page: number; pageSize: number }): Promise<Paged<ContactMessage>> {
+const MESSAGE_COLUMNS = 'id, name, email, phone, subject, message, created_at';
+/** Postgres "undefined column": read_at is not migrated yet. */
+const isMissingColumn = (error: unknown) => (error as { code?: string } | null)?.code === '42703';
+
+export async function listMessages(
+  f: { q: string; page: number; pageSize: number }
+): Promise<Paged<ContactMessage> & { readTracking: boolean }> {
   const start = (f.page - 1) * f.pageSize;
-  let q: Builder = getDb()
-    .from('contact_messages')
-    .select('id, name, email, phone, subject, message, created_at', { count: 'exact' });
-  if (f.q) q = q.or(ilikeAny(['name', 'email', 'subject', 'message', 'phone'], f.q));
-  const result = await q.order('created_at', { ascending: false }).range(start, start + f.pageSize - 1);
+  const run = (columns: string) => {
+    let q: Builder = getDb().from('contact_messages').select(columns, { count: 'exact' });
+    if (f.q) q = q.or(ilikeAny(['name', 'email', 'subject', 'message', 'phone'], f.q));
+    return q.order('created_at', { ascending: false }).range(start, start + f.pageSize - 1);
+  };
+  let readTracking = true;
+  let result = await run(`${MESSAGE_COLUMNS}, read_at`);
+  if (isMissingColumn(result.error)) {
+    readTracking = false;
+    result = await run(MESSAGE_COLUMNS);
+  }
   if (result.error && result.error.code !== 'PGRST103') throw toStoreError(result.error);
   return {
-    rows: ((result.data ?? []) as Record<string, unknown>[]).map(messageFromRow),
+    rows: ((result.data ?? []) as unknown as Record<string, unknown>[]).map(messageFromRow),
     total: result.count ?? 0,
     page: f.page,
     pageSize: f.pageSize,
+    readTracking,
   };
 }
 
 export async function getMessage(id: string): Promise<ContactMessage | null> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
-  const row = check(
-    await getDb().from('contact_messages').select('id, name, email, phone, subject, message, created_at').eq('id', id).maybeSingle()
-  ) as Record<string, unknown> | null;
+  const read = (columns: string) => getDb().from('contact_messages').select(columns).eq('id', id).maybeSingle();
+  let result = await read(`${MESSAGE_COLUMNS}, read_at`);
+  if (isMissingColumn(result.error)) result = await read(MESSAGE_COLUMNS);
+  const row = check(result) as unknown as Record<string, unknown> | null;
   return row ? messageFromRow(row) : null;
 }
 

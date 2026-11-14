@@ -290,6 +290,12 @@ export function parseReviewId(p: Payload): string {
   return id;
 }
 
+export function parseMessageRead(p: Payload): { id: string; read: boolean } {
+  const id = parseId(p, 'id', 'Message id');
+  if (!UUID_RE.test(id)) throw invalid('Message id is not valid.');
+  return { id, read: bool(p.read, 'read') };
+}
+
 export function parseReviewModeration(p: Payload): { id: string; approved: boolean } {
   return { id: parseReviewId(p), approved: bool(p.approved, 'approved') };
 }

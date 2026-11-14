@@ -878,3 +878,19 @@ export async function deleteCoupon(code: string): Promise<void> {
   const { error } = await getDb().from('coupons').delete().eq('code', code);
   if (error) throw toStoreError(error);
 }
+
+/** Marks a contact-form message read (now) or unread (null). */
+export async function setMessageRead(id: string, read: boolean): Promise<void> {
+  const { error } = await getDb()
+    .from('contact_messages')
+    .update({ read_at: read ? new Date().toISOString() : null })
+    .eq('id', id);
+  if (error?.code === '42703') {
+    throw new StoreError(
+      503,
+      'DATABASE_NOT_READY',
+      'Read state needs the contact_messages.read_at column. Run supabase/schema.sql in the Supabase SQL Editor.'
+    );
+  }
+  if (error) throw toStoreError(error);
+}

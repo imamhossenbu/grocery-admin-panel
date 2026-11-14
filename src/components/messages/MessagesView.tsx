@@ -1,14 +1,16 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useTransition } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowLeft, Inbox, Mail, MailOpen, Phone, Reply } from 'lucide-react';
+import { ArrowLeft, Inbox, Mail, MailOpen, MailWarning, Phone, Reply } from 'lucide-react';
 import type { ContactMessage, Paged } from '@/types/admin';
 import { cn } from '@/lib/cn';
 import { formatDateTime, formatRelative } from '@/lib/dates';
 import { useUrlState } from '@/lib/client/use-url-state';
 import { useLocalStorage } from '@/lib/client/use-local-storage';
+import { postStoreAction, useStoreAction } from '@/lib/client/store-action';
 import { Avatar, Card, Kbd } from '@/components/ui/Card';
 import { SearchInput } from '@/components/ui/Input';
 import { Pagination } from '@/components/ui/Pagination';
@@ -21,18 +23,47 @@ export function MessagesView({
   selected,
   filters,
 }: {
-  data: Paged<ContactMessage>;
+  data: Paged<ContactMessage> & { readTracking: boolean };
   selected: ContactMessage | null;
   filters: { q: string; page: number; pageSize: number };
 }) {
   const { set, href, isPending } = useUrlState();
-  // Read/unread is a per-browser convenience (no schema change).
-  const [read, setRead] = useLocalStorage<string[]>('fb-admin:read-messages', []);
-  const readSet = new Set(read);
+  const router = useRouter();
+  const [, startRefresh] = useTransition();
+  const { run, busy } = useStoreAction();
+  // Read state lives in contact_messages.read_at. Until that column is
+  // migrated, fall back to a per-browser list.
+  const tracked = data.readTracking;
+  const [localRead, setLocalRead] = useLocalStorage<string[]>('fb-admin:read-messages', []);
+  const localSet = new Set(localRead);
+  const isUnread = (m: ContactMessage) => (tracked ? !m.readAt : !localSet.has(m.id));
 
+  // Opening a message marks it read (once per message per visit).
+  const marked = useRef(new Set<string>());
   useEffect(() => {
-    if (selected && !read.includes(selected.id)) setRead([...read.slice(-500), selected.id]);
-  }, [selected, read, setRead]);
+    if (!selected) return;
+    if (!tracked) {
+      if (!localRead.includes(selected.id)) setLocalRead([...localRead.slice(-500), selected.id]);
+      return;
+    }
+    if (selected.readAt || marked.current.has(selected.id)) return;
+    marked.current.add(selected.id);
+    void postStoreAction('SET_MESSAGE_READ', { id: selected.id, read: true }).then((r) => {
+      if (r.ok) startRefresh(() => router.refresh());
+    });
+  }, [selected, tracked, localRead, setLocalRead, router]);
+
+  const markUnread = async (m: ContactMessage) => {
+    if (!tracked) {
+      setLocalRead(localRead.filter((id) => id !== m.id));
+    } else {
+      const out = await run('SET_MESSAGE_READ', { id: m.id, read: false }, { success: 'Marked as unread', error: 'Could not mark as unread' }, { refresh: false });
+      if (!out.ok) return;
+    }
+    // Close the message so opening it again marks it read.
+    marked.current.delete(m.id);
+    set({ id: null }, { keepPage: true });
+  };
 
   const list = (
     <Card className={cn('flex flex-col', selected && 'hidden lg:flex')}>
@@ -65,7 +96,7 @@ export function MessagesView({
         <ul className="divide-y divide-[#edf4ef]">
           {data.rows.map((m) => {
             const active = selected?.id === m.id;
-            const unread = !readSet.has(m.id);
+            const unread = isUnread(m);
             return (
               <li key={m.id}>
                 <Link
@@ -132,6 +163,9 @@ export function MessagesView({
                       <Phone className="h-4 w-4" /> Call {selected.phone}
                     </a>
                   )}
+                  <button type="button" onClick={() => markUnread(selected)} disabled={busy} className={buttonClass('ghost', 'md')}>
+                    <MailWarning className="h-4 w-4" /> Mark as unread
+                  </button>
                   <span className="ml-auto inline-flex items-center gap-1.5 text-[13px] text-muted">
                     <Mail className="h-4 w-4" /> {selected.email}
                   </span>

@@ -20,6 +20,7 @@ import {
   setProductActive,
   setProductsActive,
   setProductsCategory,
+  setMessageRead,
   setReviewApproved,
   setProductFeatured,
   setProductStock,
@@ -35,6 +36,7 @@ import {
   parseCoupon,
   parseId,
   parseIdList,
+  parseMessageRead,
   parseOrderStatus,
   parseProduct,
   parseQuickStock,
@@ -47,7 +49,7 @@ import {
 type ActionResult = { id?: string; count?: number } | void;
 
 /** Actions that cannot change anything the storefront shows. */
-const NO_STOREFRONT_IMPACT = new Set(['MARK_ORDER_REFUNDED', 'DELETE_ORDER']);
+const NO_STOREFRONT_IMPACT = new Set(['MARK_ORDER_REFUNDED', 'DELETE_ORDER', 'SET_MESSAGE_READ']);
 
 const NO_STORE = { 'Cache-Control': 'no-store, max-age=0' };
 
@@ -145,6 +147,11 @@ async function runAction(action: unknown, rawPayload: unknown): Promise<ActionRe
 
     case 'DELETE_REVIEW':
       return deleteReview(parseReviewId(asPayload(rawPayload)));
+
+    case 'SET_MESSAGE_READ': {
+      const { id, read } = parseMessageRead(asPayload(rawPayload));
+      return setMessageRead(id, read);
+    }
 
     case 'REVALIDATE_STOREFRONT':
       // Nothing to write: the revalidation below is the whole action.
