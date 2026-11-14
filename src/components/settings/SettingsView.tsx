@@ -3,9 +3,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Database, ExternalLink, Globe, RefreshCw, Store } from 'lucide-react';
-import type { AdminAccountRow, DeliverySettingsState } from '@/types/admin';
-import { DeliverySettingsCard } from './DeliverySettingsCard';
-import { TeamCard } from './TeamCard';
 import { formatNumber } from '@/lib/format';
 import { useStoreAction } from '@/lib/client/store-action';
 import { Card, CardHeader } from '@/components/ui/Card';
@@ -31,21 +28,12 @@ function Item({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
-export function SettingsView({
-  info,
-  admins,
-  currentId,
-  delivery,
-}: {
-  info: StoreInfo;
-  admins: AdminAccountRow[];
-  currentId: string;
-  delivery: DeliverySettingsState;
-}) {
+/** Settings → General: store configuration, storefront cache, counts. */
+export function GeneralSettings({ info }: { info: StoreInfo }) {
   const { run, pending } = useStoreAction();
   return (
-    <motion.div variants={staggerParent} initial="initial" animate="animate" className="grid items-start gap-6 xl:grid-cols-3">
-      <div className="space-y-6 xl:col-span-2">
+    <motion.div variants={staggerParent} initial="initial" animate="animate" className="grid grid-cols-1 items-start gap-6 2xl:grid-cols-3 [&>*]:min-w-0">
+      <div className="space-y-6 2xl:col-span-2">
         <motion.div variants={riseChild}>
           <Card>
             <CardHeader title="Store" description="Read-only. Change these in the server environment (.env.local)." icon={<Store className="h-[18px] w-[18px]" />} />
@@ -72,17 +60,9 @@ export function SettingsView({
             </dl>
           </Card>
         </motion.div>
-
-        <motion.div variants={riseChild}>
-          <DeliverySettingsCard state={delivery} />
-        </motion.div>
-
-        <motion.div variants={riseChild}>
-          <TeamCard admins={admins} currentId={currentId} />
-        </motion.div>
       </div>
 
-      <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-1 [&>*]:min-w-0">
         <motion.div variants={riseChild}>
           <Card>
             <CardHeader title="Storefront cache" icon={<Globe className="h-[18px] w-[18px]" />} />

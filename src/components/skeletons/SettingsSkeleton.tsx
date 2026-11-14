@@ -58,3 +58,17 @@ export function SettingsSkeleton() {
     </PageSkeleton>
   );
 }
+
+/** One settings section (the side nav is part of the layout, not this). */
+export function SettingsSectionSkeleton({ cards = 1 }: { cards?: number }) {
+  return (
+    <div className="space-y-6" aria-hidden>
+      {Array.from({ length: cards }, (_, i) => (
+        <CardSkeleton key={i}>
+          <CardHeaderSkeleton />
+          <Rows n={i === 0 ? 5 : 3} />
+        </CardSkeleton>
+      ))}
+    </div>
+  );
+}

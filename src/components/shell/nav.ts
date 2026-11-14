@@ -101,6 +101,9 @@ export function isActive(pathname: string, href: string): boolean {
 }
 
 /** Breadcrumb trail for a pathname. */
+/** Titles for /settings/<section> (see components/settings/SettingsNav). */
+const SETTINGS_SECTIONS: Record<string, string> = { delivery: 'Delivery', team: 'Team' };
+
 export function crumbsFor(pathname: string): { label: string; href?: string }[] {
   if (pathname === '/') return [{ label: 'Overview' }];
   const parts = pathname.split('/').filter(Boolean);
@@ -120,7 +123,9 @@ export function crumbsFor(pathname: string): { label: string; href?: string }[] 
           ? 'Customer profile'
           : parts[0] === 'orders'
             ? `Order ${id}`
-            : id;
+            : parts[0] === 'settings'
+              ? (SETTINGS_SECTIONS[id] ?? id)
+              : id;
     out.push({ label });
   }
   return out;
