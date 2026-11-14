@@ -26,7 +26,7 @@ async function SettingsContent() {
   {
     return (
       <SettingsView
-        currentEmail={me.email}
+        currentId={me.id}
         admins={admins}
         delivery={delivery}
         info={{

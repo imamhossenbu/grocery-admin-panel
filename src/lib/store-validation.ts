@@ -313,3 +313,17 @@ export function parseDeliverySettings(p: Payload): DeliverySettings {
     outsideFreeFrom: optionalMoney(p.outsideFreeFrom, 'Free delivery outside Dhaka from'),
   };
 }
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+export function parseAddAdmin(p: Payload): { email: string; name: string | null } {
+  const email = requiredString(p, 'email', 'Email', 200).toLowerCase();
+  if (!EMAIL_RE.test(email)) throw invalid('Enter a valid email address.');
+  return { email, name: optionalString(p, 'name', 'Name', 80) };
+}
+
+export function parseAdminRole(p: Payload): { userId: string; admin: boolean } {
+  const userId = requiredString(p, 'userId', 'Account id', 64);
+  if (!UUID_RE.test(userId)) throw invalid('Account id is not valid.');
+  return { userId, admin: bool(p.admin, 'admin') };
+}

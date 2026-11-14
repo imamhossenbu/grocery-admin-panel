@@ -789,6 +789,7 @@ export async function getCustomer(id: string): Promise<CustomerDetail | null> {
         : '',
       joinedAt: user?.created_at ?? null,
       lastSignInAt: user?.last_sign_in_at ?? null,
+      isAdmin: isAdminAppMetadata(user?.app_metadata),
       updatedAt: profile?.updated_at ?? null,
       ordersCount: orders.length,
       totalSpent: spent,
@@ -1094,6 +1095,7 @@ export async function listAdmins(): Promise<AdminAccountRow[]> {
     .map((u) => ({
       id: u.id,
       email: u.email ?? '',
+      name: typeof u.user_metadata?.full_name === 'string' && u.user_metadata.full_name.trim() ? u.user_metadata.full_name.trim() : null,
       createdAt: u.created_at ?? null,
       lastSignInAt: u.last_sign_in_at ?? null,
     }))

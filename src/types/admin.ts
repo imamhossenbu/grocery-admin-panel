@@ -165,6 +165,8 @@ export interface CustomerDetail {
     fullAddress: string;
     lastSignInAt: string | null;
     updatedAt: string | null;
+    /** Has admin panel access (app_metadata.role). */
+    isAdmin: boolean;
   };
   orders: Order[];
   reviews: CustomerReview[];
@@ -247,6 +249,7 @@ export interface SearchResults {
 export interface AdminAccountRow {
   id: string;
   email: string;
+  name: string | null;
   createdAt: string | null;
   lastSignInAt: string | null;
 }

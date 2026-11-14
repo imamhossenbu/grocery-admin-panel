@@ -1,6 +1,7 @@
 import { requireAdmin } from '@/lib/auth';
 import { revalidateStorefront } from '@/lib/revalidate-storefront';
 import { revalidateAdminData } from '@/lib/revalidate-admin';
+import { addAdmin, setAdminRole, type AddAdminResult } from '@/lib/team';
 import { NextResponse } from 'next/server';
 import {
   StoreError,
@@ -35,6 +36,8 @@ import {
   parseBulkOrderStatus,
   parseCategory,
   parseCategoryReorder,
+  parseAddAdmin,
+  parseAdminRole,
   parseCoupon,
   parseDeliverySettings,
   parseId,
@@ -49,10 +52,10 @@ import {
 } from '@/lib/store-validation';
 
 /** What an action reports back (e.g. the id of a newly created product). */
-type ActionResult = { id?: string; count?: number } | void;
+type ActionResult = { id?: string; count?: number } | AddAdminResult | void;
 
 /** Actions that cannot change anything the storefront shows. */
-const NO_STOREFRONT_IMPACT = new Set(['MARK_ORDER_REFUNDED', 'DELETE_ORDER', 'SET_MESSAGE_READ']);
+const NO_STOREFRONT_IMPACT = new Set(['MARK_ORDER_REFUNDED', 'DELETE_ORDER', 'SET_MESSAGE_READ', 'ADD_ADMIN', 'SET_ADMIN_ROLE']);
 
 const NO_STORE = { 'Cache-Control': 'no-store, max-age=0' };
 
@@ -72,7 +75,7 @@ function errorResponse(err: unknown) {
 }
 
 /** Runs one targeted row operation. Throws a StoreError on bad input. */
-async function runAction(action: unknown, rawPayload: unknown): Promise<ActionResult> {
+async function runAction(action: unknown, rawPayload: unknown, actorId: string): Promise<ActionResult> {
   switch (action) {
     case 'SAVE_PRODUCT': {
       const payload = asPayload(rawPayload);
@@ -156,6 +159,14 @@ async function runAction(action: unknown, rawPayload: unknown): Promise<ActionRe
       return setMessageRead(id, read);
     }
 
+    case 'ADD_ADMIN':
+      return addAdmin(parseAddAdmin(asPayload(rawPayload)));
+
+    case 'SET_ADMIN_ROLE': {
+      const { userId, admin } = parseAdminRole(asPayload(rawPayload));
+      return setAdminRole(actorId, userId, admin);
+    }
+
     case 'SAVE_DELIVERY_SETTINGS':
       return saveDeliverySettings(parseDeliverySettings(asPayload(rawPayload)));
 
@@ -193,7 +204,7 @@ export async function POST(req: Request) {
     }
     const { action, payload } = asPayload(body);
 
-    const result = await runAction(action, payload);
+    const result = await runAction(action, payload, auth.admin.id);
     revalidateAdminData();
     if (typeof action === 'string' && !NO_STOREFRONT_IMPACT.has(action)) {
       // Delivery charges also expire the storefront's settings cache at once.

@@ -2,17 +2,15 @@
 
 import React from 'react';
 import { motion } from 'motion/react';
-import { Database, ExternalLink, Globe, RefreshCw, ShieldCheck, Store } from 'lucide-react';
+import { Database, ExternalLink, Globe, RefreshCw, Store } from 'lucide-react';
 import type { AdminAccountRow, DeliverySettingsState } from '@/types/admin';
 import { DeliverySettingsCard } from './DeliverySettingsCard';
+import { TeamCard } from './TeamCard';
 import { formatNumber } from '@/lib/format';
-import { formatDateTime } from '@/lib/dates';
 import { useStoreAction } from '@/lib/client/store-action';
-import { Avatar, Card, CardHeader } from '@/components/ui/Card';
+import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
 import { riseChild, staggerParent } from '@/components/ui/motion';
-import { RelativeTime } from '@/components/ui/RelativeTime';
 
 export interface StoreInfo {
   storefrontUrl: string | null;
@@ -36,12 +34,12 @@ function Item({ label, children }: { label: string; children: React.ReactNode })
 export function SettingsView({
   info,
   admins,
-  currentEmail,
+  currentId,
   delivery,
 }: {
   info: StoreInfo;
   admins: AdminAccountRow[];
-  currentEmail: string;
+  currentId: string;
   delivery: DeliverySettingsState;
 }) {
   const { run, pending } = useStoreAction();
@@ -80,25 +78,7 @@ export function SettingsView({
         </motion.div>
 
         <motion.div variants={riseChild}>
-          <Card>
-            <CardHeader title="Administrators" description="Accounts with admin access. Managed with the create-admin script; read-only here." icon={<ShieldCheck className="h-[18px] w-[18px]" />} />
-            <ul className="divide-y divide-[#edf4ef] px-5 pb-3 pt-2">
-              {admins.map((a) => (
-                <li key={a.id} className="flex flex-wrap items-center gap-3 py-3">
-                  <Avatar name={a.email.split('@')[0] ?? a.email} />
-                  <div className="min-w-0 flex-1">
-                    <p className="flex items-center gap-2 truncate text-sm font-medium text-ink">
-                      {a.email}
-                      {a.email === currentEmail && <Badge tone="emerald">You</Badge>}
-                    </p>
-                    <p className="text-[13px] text-muted">
-                      Added {formatDateTime(a.createdAt)} · last sign-in {a.lastSignInAt ? <RelativeTime value={a.lastSignInAt} /> : 'never'}
-                    </p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </Card>
+          <TeamCard admins={admins} currentId={currentId} />
         </motion.div>
       </div>
 

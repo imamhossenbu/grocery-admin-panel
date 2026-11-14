@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'motion/react';
 import { createColumnHelper } from '@tanstack/react-table';
-import { ArrowLeft, CalendarDays, Mail, MapPin, Phone, ShoppingBag, Star } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Mail, MapPin, Phone, ShieldCheck, ShoppingBag, Star } from 'lucide-react';
 import type { Order } from '@/types/store';
 import type { CustomerDetail } from '@/types/admin';
 import { cn } from '@/lib/cn';
@@ -20,6 +20,9 @@ import { CountUp } from '@/components/ui/CountUp';
 import { riseChild, staggerParent } from '@/components/ui/motion';
 import { PaymentBadge, StatusBadge } from '@/components/orders/OrderBadges';
 import { RelativeTime } from '@/components/ui/RelativeTime';
+import { Button } from '@/components/ui/Button';
+import { useConfirm } from '@/components/ui/ConfirmDialog';
+import { useStoreAction } from '@/lib/client/store-action';
 
 const col = createColumnHelper<Order>();
 const ORDERS_PAGE = 10;
@@ -98,9 +101,7 @@ export function CustomerDetailView({ data }: { data: CustomerDetail }) {
             </span>
           </p>
         </div>
-        <Badge tone="gray" size="md">
-          Read only
-        </Badge>
+        <AdminAccessButton userId={c.id} name={c.name} isAdmin={c.isAdmin} />
       </div>
 
       <motion.div variants={staggerParent} initial="initial" animate="animate" className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -188,6 +189,51 @@ export function CustomerDetailView({ data }: { data: CustomerDetail }) {
           </dl>
         </Card>
       </div>
+    </div>
+  );
+}
+
+/** Grant or remove admin panel access for this account (Settings → Team lists all admins). */
+function AdminAccessButton({ userId, name, isAdmin }: { userId: string; name: string; isAdmin: boolean }) {
+  const { run, busy } = useStoreAction();
+  const confirm = useConfirm();
+  const toggle = async () => {
+    const ok = await confirm(
+      isAdmin
+        ? {
+            title: `Remove admin access for ${name}?`,
+            description: 'They keep their shopper account but can no longer change anything in the admin panel.',
+            confirmLabel: 'Remove admin access',
+            tone: 'danger',
+          }
+        : {
+            title: `Make ${name} an admin?`,
+            description:
+              'They will be able to sign in to this admin panel with their storefront email and password, and manage orders, products, customers and settings.',
+            confirmLabel: 'Make admin',
+          }
+    );
+    if (!ok) return;
+    await run(
+      'SET_ADMIN_ROLE',
+      { userId, admin: !isAdmin },
+      { success: isAdmin ? 'Admin access removed' : `${name} is now an admin`, error: 'Could not change the role' }
+    );
+  };
+  return (
+    <div className="flex items-center gap-2">
+      {isAdmin && (
+        <Badge tone="emerald" size="md">
+          <ShieldCheck className="h-3.5 w-3.5" /> Admin
+        </Badge>
+      )}
+      <Button variant={isAdmin ? 'ghost' : 'outline'} onClick={toggle} loading={busy} className={isAdmin ? 'text-red-700 hover:bg-red-50 hover:text-red-700' : undefined}>
+        {isAdmin ? 'Remove admin' : (
+          <>
+            <ShieldCheck className="h-4 w-4" /> Make admin
+          </>
+        )}
+      </Button>
     </div>
   );
 }
