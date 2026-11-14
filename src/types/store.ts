@@ -126,11 +126,4 @@ export interface Order {
   updatedAt?: string;
 }
 
-export interface StoreDatabase {
-  categories: Category[];
-  products: Product[];
-  coupons: Coupon[];
-  orders: Order[];
-  updatedAt: string;
-}
 

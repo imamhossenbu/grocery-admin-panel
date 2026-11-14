@@ -14,7 +14,6 @@ import type {
   OrderStatusEvent,
   PaymentStatus,
   Product,
-  StoreDatabase,
 } from '@/types/store';
 import { PAYMENT_STATUSES } from '@/types/store';
 import { slugify } from './slug';
@@ -433,37 +432,6 @@ function unknownCategoryError(category: string): StoreError {
 // ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
-
-/** Loads everything the admin UI shows, in the shape it has always used. */
-export async function readStore(): Promise<StoreDatabase> {
-  const db = getDb();
-  const [categories, products, coupons, orders] = await Promise.all([
-    db
-      .from('categories')
-      .select(CATEGORY_COLUMNS)
-      .order('sort_order', { ascending: true })
-      .order('name', { ascending: true }),
-    db
-      .from('products')
-      .select(PRODUCT_COLUMNS)
-      .order('created_at', { ascending: false })
-      .order('id', { ascending: true }),
-    db.from('coupons').select(COUPON_COLUMNS).order('created_at', { ascending: true }),
-    db.from('orders').select(ORDER_COLUMNS).order('created_at', { ascending: false }),
-  ]);
-
-  for (const result of [categories, products, coupons, orders]) {
-    if (result.error) throw toStoreError(result.error);
-  }
-
-  return {
-    categories: ((categories.data ?? []) as unknown as CategoryRow[]).map(categoryFromRow),
-    products: ((products.data ?? []) as unknown as ProductRow[]).map(productFromRow),
-    coupons: ((coupons.data ?? []) as unknown as CouponRow[]).map(couponFromRow),
-    orders: ((orders.data ?? []) as unknown as OrderRow[]).map(orderFromRow),
-    updatedAt: new Date().toISOString(),
-  };
-}
 
 export async function productExists(id: string): Promise<boolean> {
   const { data, error } = await getDb().from('products').select('id').eq('id', id).limit(1);
