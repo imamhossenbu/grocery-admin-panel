@@ -1,5 +1,6 @@
 import { requireAdmin } from '@/lib/auth';
 import { revalidateStorefront } from '@/lib/revalidate-storefront';
+import { revalidateAdminData } from '@/lib/revalidate-admin';
 import { NextResponse } from 'next/server';
 import {
   StoreError,
@@ -188,6 +189,7 @@ export async function POST(req: Request) {
     const { action, payload } = asPayload(body);
 
     const result = await runAction(action, payload);
+    revalidateAdminData();
     if (typeof action === 'string' && !NO_STOREFRONT_IMPACT.has(action)) {
       await revalidateStorefront();
     }

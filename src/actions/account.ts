@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { checkAdmin } from '@/lib/auth';
 import { supabaseServer } from '@/lib/supabase/server';
+import { revalidateAdminData } from '@/lib/revalidate-admin';
 
 /**
  * The signed-in admin's own account: display name and password.
@@ -23,6 +24,15 @@ function field(formData: FormData, name: string): string {
   return typeof v === 'string' ? v : '';
 }
 
+/**
+ * Pages read the admin's name and photo from the session token
+ * (requireAdminPage → getClaims), so mint a new token after changing
+ * user_metadata; the new cookies are written by this server action.
+ */
+async function refreshToken(supabase: Awaited<ReturnType<typeof supabaseServer>>) {
+  await supabase.auth.refreshSession().catch(() => undefined);
+}
+
 const SESSION_EXPIRED: AccountFormState = { ok: false, message: 'Your session has expired. Please sign in again.' };
 
 export async function updateProfile(_prev: AccountFormState, formData: FormData): Promise<AccountFormState> {
@@ -36,6 +46,8 @@ export async function updateProfile(_prev: AccountFormState, formData: FormData)
   const supabase = await supabaseServer();
   const { error } = await supabase.auth.updateUser({ data: { full_name: name } });
   if (error) return { ok: false, message: 'Could not save your name. Please try again.' };
+  await refreshToken(supabase);
+  revalidateAdminData(); // Settings lists admins by name
   return { ok: true, message: 'Profile saved.' };
 }
 
@@ -113,5 +125,6 @@ export async function updateAvatar(url: string | null): Promise<AccountFormState
   const supabase = await supabaseServer();
   const { error } = await supabase.auth.updateUser({ data: { avatar_url: url } });
   if (error) return { ok: false, message: 'Could not save your photo. Please try again.' };
+  await refreshToken(supabase);
   return { ok: true, message: url ? 'Photo updated.' : 'Photo removed.' };
 }

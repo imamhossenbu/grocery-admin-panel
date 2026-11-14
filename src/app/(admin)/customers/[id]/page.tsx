@@ -1,8 +1,9 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { requireAdminPage } from '@/lib/auth';
-import { getCustomer } from '@/lib/admin-queries';
+import { requireAdminWith } from '@/lib/auth';
+import { safeLoad } from '@/lib/safe-load';
+import { getCustomer } from '@/lib/cached-queries';
 import { LoadError } from '@/components/ui/LoadError';
 import { CustomerDetailView } from '@/components/customers/CustomerDetailView';
 import { CustomerDetailSkeleton } from '@/components/skeletons/CustomersSkeleton';
@@ -10,14 +11,10 @@ import { CustomerDetailSkeleton } from '@/components/skeletons/CustomersSkeleton
 export const metadata: Metadata = { title: 'Customer' };
 
 async function CustomerContent({ params }: { params: Promise<{ id: string }> }) {
-  await requireAdminPage();
   const { id } = await params;
-  let data;
-  try {
-    data = await getCustomer(id);
-  } catch (err) {
-    return <LoadError error={err} />;
-  }
+  const [, r] = await requireAdminWith(() => safeLoad(() => getCustomer(id)));
+  if (!r.ok) return <LoadError error={r.error} />;
+  const data = r.data;
   if (!data) notFound();
   return <CustomerDetailView data={data} />;
 }

@@ -1,7 +1,8 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import { requireAdminPage } from '@/lib/auth';
-import { listOrders } from '@/lib/admin-queries';
+import { requireAdminWith } from '@/lib/auth';
+import { listOrders, warmOrderTabs } from '@/lib/cached-queries';
+import { after } from 'next/server';
 import { parseOrderFilters, type RawSearchParams } from '@/lib/filters';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadError } from '@/components/ui/LoadError';
@@ -17,10 +18,11 @@ const HEADER = {
 };
 
 async function OrdersContent({ searchParams }: { searchParams: Promise<RawSearchParams> }) {
-  await requireAdminPage();
   const filters = parseOrderFilters(await searchParams);
-  const r = await safeLoad(() => listOrders(filters));
+  const [, r] = await requireAdminWith(() => safeLoad(() => listOrders(filters)));
   if (!r.ok) return <LoadError error={r.error} />;
+  // Load the other tabs into the cache after this response is sent.
+  after(() => warmOrderTabs(filters));
   return <OrdersView data={r.data} filters={filters} />;
 }
 

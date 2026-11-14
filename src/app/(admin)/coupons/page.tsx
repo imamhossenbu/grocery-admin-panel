@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import { requireAdminPage } from '@/lib/auth';
-import { listCoupons } from '@/lib/admin-queries';
+import { requireAdminWith } from '@/lib/auth';
+import { listCoupons } from '@/lib/cached-queries';
 import { one, type RawSearchParams } from '@/lib/filters';
 import { LoadError } from '@/components/ui/LoadError';
 import { safeLoad } from '@/lib/safe-load';
@@ -12,9 +12,8 @@ export const metadata: Metadata = { title: 'Coupons' };
 
 
 async function CouponsContent({ searchParams }: { searchParams: Promise<RawSearchParams> }) {
-  await requireAdminPage();
   const sp = await searchParams;
-  const r = await safeLoad(() => listCoupons());
+  const [, r] = await requireAdminWith(() => safeLoad(() => listCoupons()));
   if (!r.ok) return <LoadError error={r.error} />;
   return <CouponsView coupons={r.data} openNew={one(sp, 'new') === '1'} />;
 }

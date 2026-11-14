@@ -1,8 +1,9 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { requireAdminPage } from '@/lib/auth';
-import { getCategoriesData, getProduct } from '@/lib/admin-queries';
+import { requireAdminWith } from '@/lib/auth';
+import { safeLoad } from '@/lib/safe-load';
+import { getCategoriesData, getProduct } from '@/lib/cached-queries';
 import { categoryTotals } from '@/lib/category-totals';
 import { LoadError } from '@/components/ui/LoadError';
 import { ProductForm } from '@/components/products/ProductForm';
@@ -11,15 +12,12 @@ import { ProductFormSkeleton } from '@/components/skeletons/ProductsSkeleton';
 export const metadata: Metadata = { title: 'Edit product' };
 
 async function EditProduct({ params }: { params: Promise<{ id: string }> }) {
-  await requireAdminPage();
   const { id } = await params;
-  let data;
-  try {
-    const [product, cats] = await Promise.all([getProduct(decodeURIComponent(id).slice(0, 200)), getCategoriesData()]);
-    data = { product, ...cats };
-  } catch (err) {
-    return <LoadError error={err} />;
-  }
+  const [, r] = await requireAdminWith(() =>
+    safeLoad(() => Promise.all([getProduct(decodeURIComponent(id).slice(0, 200)), getCategoriesData()]))
+  );
+  if (!r.ok) return <LoadError error={r.error} />;
+  const data = { product: r.data[0], ...r.data[1] };
   if (!data.product) notFound();
   return (
     <ProductForm

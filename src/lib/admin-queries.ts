@@ -638,7 +638,18 @@ async function listAuthUsers(maxPages = 20): Promise<User[]> {
   return users;
 }
 
-export async function listCustomers(f: CustomerFilters): Promise<Paged<CustomerRow> & { totals: { all: number; buyers: number; repeat: number } }> {
+export type CustomersPage = Paged<CustomerRow> & { totals: { all: number; buyers: number; repeat: number } };
+
+export async function listCustomers(f: CustomerFilters): Promise<CustomersPage> {
+  return filterCustomers(await loadCustomerRows(), f);
+}
+
+/**
+ * Every customer with order count, spend and last order. The expensive part
+ * (all profiles, auth users and orders); cached by lib/cached-queries.ts and
+ * shared by every segment tab, search and page.
+ */
+export async function loadCustomerRows(): Promise<CustomerRow[]> {
   const db = getDb();
   const pcols = await profileCols();
   const [profiles, users, orders] = await Promise.all([
@@ -682,7 +693,11 @@ export async function listCustomers(f: CustomerFilters): Promise<Paged<CustomerR
   }
   // Profiles whose auth user is gone (should not happen: FK cascade) are skipped.
   void seen;
+  return rows;
+}
 
+/** Segment, search, sort and page over the full customer list (in memory). */
+export function filterCustomers(rows: CustomerRow[], f: CustomerFilters): CustomersPage {
   const totals = {
     all: rows.length,
     buyers: rows.filter((r) => r.ordersCount > 0).length,

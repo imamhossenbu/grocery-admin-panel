@@ -1,7 +1,8 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import { requireAdminPage } from '@/lib/auth';
-import { listReviews } from '@/lib/admin-queries';
+import { requireAdminWith } from '@/lib/auth';
+import { listReviews, warmReviewTabs } from '@/lib/cached-queries';
+import { after } from 'next/server';
 import { parseReviewFilters, type RawSearchParams } from '@/lib/filters';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadError } from '@/components/ui/LoadError';
@@ -12,10 +13,11 @@ import { ReviewsSkeleton } from '@/components/skeletons/ReviewsSkeleton';
 export const metadata: Metadata = { title: 'Reviews' };
 
 async function ReviewsContent({ searchParams }: { searchParams: Promise<RawSearchParams> }) {
-  await requireAdminPage();
   const filters = parseReviewFilters(await searchParams);
-  const r = await safeLoad(() => listReviews(filters));
+  const [, r] = await requireAdminWith(() => safeLoad(() => listReviews(filters)));
   if (!r.ok) return <LoadError error={r.error} />;
+  // Load the other tabs into the cache after this response is sent.
+  after(() => warmReviewTabs(filters));
   return <ReviewsView data={r.data} filters={filters} />;
 }
 

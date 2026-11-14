@@ -89,13 +89,66 @@ export async function requireAdmin(): Promise<
 }
 
 /**
+ * Fast check for rendering pages: verifies the session JWT locally with
+ * getClaims() (ES256, the project's published signing key is cached), so
+ * no Auth round trip per navigation. The role comes from the signed token's
+ * app_metadata, which only the secret key can write.
+ *
+ * Trade-off, by design: a revoked admin can still *view* pages until their
+ * access token expires (1 hour by default). Every write (route handlers and
+ * server actions) still uses checkAdmin(), which asks the Auth server.
+ */
+async function checkAdminFromToken(): Promise<AdminCheck> {
+  await connection();
+  try {
+    const supabase = await supabaseServer();
+    const { data, error } = await supabase.auth.getClaims();
+    const claims = data?.claims;
+    if (error || !claims?.sub) return { ok: false, status: 401 };
+    if (!isAdminAppMetadata(claims.app_metadata)) return { ok: false, status: 403 };
+    const meta = (claims.user_metadata ?? {}) as Record<string, unknown>;
+    const fullName = typeof meta.full_name === 'string' ? meta.full_name.trim() : '';
+    return {
+      ok: true,
+      admin: {
+        id: claims.sub,
+        email: typeof claims.email === 'string' ? claims.email : '',
+        name: fullName || null,
+        avatarUrl: typeof meta.avatar_url === 'string' ? meta.avatar_url : null,
+        // Not in the token; pages that need them use checkAdmin().
+        lastSignInAt: null,
+        createdAt: null,
+      },
+    };
+  } catch {
+    return { ok: false, status: 401 };
+  }
+}
+
+/**
  * Guard for Server Components and pages: redirects to /login unless the
- * request comes from an admin. Deduplicated per request with React cache(),
- * so several Suspense sections on one page cost one Auth round trip.
- * Reads cookies, so it must run inside a <Suspense> boundary.
+ * session token belongs to an admin (checkAdminFromToken). Deduplicated per
+ * request with React cache(). Reads cookies, so render inside <Suspense>.
  */
 export const requireAdminPage = cache(async (): Promise<AdminUser> => {
+  const result = await checkAdminFromToken();
+  if (!result.ok) redirect('/login');
+  return result.admin;
+});
+
+/** Like requireAdminPage, but confirmed with the Auth server (full user record). */
+export const requireAdminAccount = cache(async (): Promise<AdminUser> => {
   const result = await checkAdmin();
   if (!result.ok) redirect('/login');
   return result.admin;
 });
+
+/**
+ * requireAdminPage() and a data load in parallel (the Auth round trip no
+ * longer delays the query). The data is only returned once the admin check
+ * has passed; a failed check redirects to /login as before. Use it only for
+ * secret-key reads that don't depend on who the admin is.
+ */
+export async function requireAdminWith<T>(load: () => Promise<T>): Promise<[AdminUser, T]> {
+  return Promise.all([requireAdminPage(), load()]);
+}

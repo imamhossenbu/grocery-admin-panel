@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import { requireAdminPage } from '@/lib/auth';
+import { requireAdminAccount } from '@/lib/auth';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ProfileView } from '@/components/profile/ProfileView';
 import { SettingsSkeleton } from '@/components/skeletons/SettingsSkeleton';
@@ -8,7 +8,7 @@ import { SettingsSkeleton } from '@/components/skeletons/SettingsSkeleton';
 export const metadata: Metadata = { title: 'Profile' };
 
 async function ProfileContent() {
-  const { email, name, avatarUrl, lastSignInAt, createdAt } = await requireAdminPage();
+  const { email, name, avatarUrl, lastSignInAt, createdAt } = await requireAdminAccount();
   return <ProfileView admin={{ email, name, avatarUrl, lastSignInAt, createdAt }} />;
 }
 

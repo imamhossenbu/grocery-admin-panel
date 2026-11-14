@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import { requireAdminPage } from '@/lib/auth';
-import { getMessage, listMessages } from '@/lib/admin-queries';
+import { requireAdminWith } from '@/lib/auth';
+import { getMessage, listMessages } from '@/lib/cached-queries';
 import { one, parseSimpleList, type RawSearchParams } from '@/lib/filters';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadError } from '@/components/ui/LoadError';
@@ -12,11 +12,10 @@ import { MessagesSkeleton } from '@/components/skeletons/MessagesSkeleton';
 export const metadata: Metadata = { title: 'Messages' };
 
 async function MessagesContent({ searchParams }: { searchParams: Promise<RawSearchParams> }) {
-  await requireAdminPage();
   const sp = await searchParams;
   const filters = parseSimpleList(sp);
   const id = one(sp, 'id');
-  const r = await safeLoad(() => Promise.all([listMessages(filters), id ? getMessage(id) : Promise.resolve(null)]));
+  const [, r] = await requireAdminWith(() => safeLoad(() => Promise.all([listMessages(filters), id ? getMessage(id) : Promise.resolve(null)])));
   if (!r.ok) return <LoadError error={r.error} />;
   return <MessagesView data={r.data[0]} selected={r.data[1]} filters={filters} />;
 }

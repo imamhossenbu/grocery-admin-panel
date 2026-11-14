@@ -2,8 +2,9 @@ import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
-import { requireAdminPage } from '@/lib/auth';
-import { listProducts } from '@/lib/admin-queries';
+import { requireAdminWith } from '@/lib/auth';
+import { listProducts, warmProductTabs } from '@/lib/cached-queries';
+import { after } from 'next/server';
 import { parseProductFilters, type RawSearchParams } from '@/lib/filters';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { buttonClass } from '@/components/ui/Button';
@@ -27,10 +28,11 @@ const productsHeader = (
 );
 
 async function ProductsContent({ searchParams }: { searchParams: Promise<RawSearchParams> }) {
-  await requireAdminPage();
   const filters = parseProductFilters(await searchParams);
-  const r = await safeLoad(() => listProducts(filters));
+  const [, r] = await requireAdminWith(() => safeLoad(() => listProducts(filters)));
   if (!r.ok) return <LoadError error={r.error} />;
+  // Load the other tabs into the cache after this response is sent.
+  after(() => warmProductTabs(filters));
   return <ProductsView data={r.data} filters={filters} />;
 }
 

@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import { requireAdminPage } from '@/lib/auth';
-import { getStoreStats, listAdmins } from '@/lib/admin-queries';
+import { requireAdminWith } from '@/lib/auth';
+import { getStoreStats, listAdmins } from '@/lib/cached-queries';
 import { DELIVERY_FEE, FREE_DELIVERY_FROM, LOW_STOCK_THRESHOLD, STORE_TIMEZONE } from '@/lib/constants';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadError } from '@/components/ui/LoadError';
@@ -20,8 +20,7 @@ function host(url: string | undefined): string | null {
 }
 
 async function SettingsContent() {
-  const me = await requireAdminPage();
-  const r = await safeLoad(() => Promise.all([listAdmins(), getStoreStats()]));
+  const [me, r] = await requireAdminWith(() => safeLoad(() => Promise.all([listAdmins(), getStoreStats()])));
   if (!r.ok) return <LoadError error={r.error} />;
   const [admins, stats] = r.data;
   {

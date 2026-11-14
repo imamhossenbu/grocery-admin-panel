@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
-import { requireAdminPage } from '@/lib/auth';
-import { listCustomers } from '@/lib/admin-queries';
+import { requireAdminWith } from '@/lib/auth';
+import { listCustomers } from '@/lib/cached-queries';
 import { parseCustomerFilters, type RawSearchParams } from '@/lib/filters';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadError } from '@/components/ui/LoadError';
@@ -12,9 +12,8 @@ import { CustomersSkeleton } from '@/components/skeletons/CustomersSkeleton';
 export const metadata: Metadata = { title: 'Customers' };
 
 async function CustomersContent({ searchParams }: { searchParams: Promise<RawSearchParams> }) {
-  await requireAdminPage();
   const filters = parseCustomerFilters(await searchParams);
-  const r = await safeLoad(() => listCustomers(filters));
+  const [, r] = await requireAdminWith(() => safeLoad(() => listCustomers(filters)));
   if (!r.ok) return <LoadError error={r.error} />;
   return <CustomersView data={r.data} filters={filters} />;
 }
