@@ -15,7 +15,17 @@ import {
 } from '@/components/ui/DropdownMenu';
 import { Skeleton } from '@/components/ui/Skeleton';
 
-export function ProfileMenu({ email, name: fullName, storefrontUrl }: { email: string; name?: string | null; storefrontUrl?: string }) {
+export function ProfileMenu({
+  email,
+  name: fullName,
+  avatarUrl,
+  storefrontUrl,
+}: {
+  email: string;
+  name?: string | null;
+  avatarUrl?: string | null;
+  storefrontUrl?: string;
+}) {
   const [pending, startTransition] = useTransition();
   const name = fullName || email.split('@')[0] || 'Admin';
   return (
@@ -24,13 +34,13 @@ export function ProfileMenu({ email, name: fullName, storefrontUrl }: { email: s
         aria-label={`Account menu for ${email}`}
         className="flex h-10 cursor-pointer items-center gap-2 rounded-xl pl-1 pr-2 outline-none transition hover:bg-mint focus-visible:ring-2 focus-visible:ring-primary/40 data-[state=open]:bg-mint"
       >
-        <Avatar name={name} className="h-8 w-8" />
+        <Avatar name={name} src={avatarUrl ?? undefined} className="h-8 w-8" />
         <span className="hidden max-w-36 truncate text-sm font-medium text-ink xl:block">{name}</span>
         <ChevronDown className="hidden h-4 w-4 text-muted xl:block" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-64">
         <div className="flex items-center gap-3 px-2.5 py-2.5">
-          <Avatar name={name} />
+          <Avatar name={name} src={avatarUrl ?? undefined} />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-ink">{name}</p>
             <p className="truncate text-[13px] text-muted">{email}</p>

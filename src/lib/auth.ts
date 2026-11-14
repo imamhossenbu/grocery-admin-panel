@@ -13,6 +13,8 @@ export interface AdminUser {
   email: string;
   /** user_metadata.full_name, set on the Profile page. */
   name: string | null;
+  /** user_metadata.avatar_url, uploaded on the Profile page. */
+  avatarUrl: string | null;
   lastSignInAt: string | null;
   createdAt: string | null;
 }
@@ -51,6 +53,7 @@ export async function checkAdmin(): Promise<AdminCheck> {
       id: user.id,
       email: user.email ?? '',
       name: fullName || null,
+      avatarUrl: typeof user.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : null,
       lastSignInAt: user.last_sign_in_at ?? null,
       createdAt: user.created_at ?? null,
     },

@@ -90,3 +90,28 @@ export async function changePassword(_prev: AccountFormState, formData: FormData
     message: signOutOthers ? 'Password changed. Other devices have been signed out.' : 'Password changed.',
   };
 }
+
+/** Only images our own upload route produced (Cloudinary or this project's Storage). */
+function isOurImageUrl(value: string): boolean {
+  try {
+    const u = new URL(value);
+    if (u.protocol !== 'https:') return false;
+    const supabaseHost = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').host;
+    return u.host === 'res.cloudinary.com' || u.host === supabaseHost;
+  } catch {
+    return false;
+  }
+}
+
+/** Saves (or with null, removes) the admin's profile photo URL. */
+export async function updateAvatar(url: string | null): Promise<AccountFormState> {
+  const auth = await checkAdmin();
+  if (!auth.ok) return SESSION_EXPIRED;
+  if (url !== null && (url.length > 500 || !isOurImageUrl(url))) {
+    return { ok: false, message: 'That image link is not allowed. Upload the photo again.' };
+  }
+  const supabase = await supabaseServer();
+  const { error } = await supabase.auth.updateUser({ data: { avatar_url: url } });
+  if (error) return { ok: false, message: 'Could not save your photo. Please try again.' };
+  return { ok: true, message: url ? 'Photo updated.' : 'Photo removed.' };
+}

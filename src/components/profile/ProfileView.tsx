@@ -2,8 +2,9 @@
 
 import React, { startTransition, useActionState, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { KeyRound, Mail, ShieldCheck, UserRound } from 'lucide-react';
-import { changePassword, updateProfile, type AccountFormState } from '@/actions/account';
+import { Camera, KeyRound, Loader2, Mail, ShieldCheck, Trash2, UserRound } from 'lucide-react';
+import { changePassword, updateAvatar, updateProfile, type AccountFormState } from '@/actions/account';
+import { ACCEPTED_IMAGE_TYPES, MAX_IMAGE_BYTES, uploadImage } from '@/lib/client/upload';
 import type { AdminUser } from '@/lib/auth';
 import { formatDateTime } from '@/lib/dates';
 import { Avatar, Card, CardHeader } from '@/components/ui/Card';
@@ -70,7 +71,7 @@ export function ProfileView({ admin }: { admin: Omit<AdminUser, 'id'> }) {
     <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-3 [&>*]:min-w-0">
       <Card className="xl:order-last">
         <div className="flex flex-col items-center px-5 pb-5 pt-6 text-center">
-          <Avatar name={displayName} className="h-16 w-16 text-lg" />
+          <AvatarUpload name={displayName} url={admin.avatarUrl} onSaved={() => router.refresh()} />
           <p className="mt-3 font-display text-lg font-semibold text-ink">{displayName}</p>
           <p className="flex items-center gap-1.5 break-all text-[13px] text-muted">
             <Mail className="h-3.5 w-3.5 shrink-0" /> {admin.email}
@@ -192,4 +193,105 @@ function passwordStrength(pw: string) {
     { score, label: 'Good', bar: 'bg-primary-400', text: 'text-primary-600' },
     { score, label: 'Strong', bar: 'bg-primary', text: 'text-primary-600' },
   ][score];
+}
+
+/** Profile photo with upload / replace / remove. Uses the same /api/upload as product images. */
+function AvatarUpload({ name, url, onSaved }: { name: string; url: string | null; onSaved: () => void }) {
+  const toast = useToast();
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState<false | 'upload' | 'remove'>(false);
+  const [progress, setProgress] = useState(0);
+  // Shown right away while the page refreshes with the saved value.
+  const [shown, setShown] = useState<string | null>(url);
+  const [seenUrl, setSeenUrl] = useState(url);
+  if (seenUrl !== url) {
+    setSeenUrl(url);
+    setShown(url);
+  }
+
+  const save = async (next: string | null) => {
+    const res = await updateAvatar(next);
+    if (!res.ok) throw new Error(res.message);
+    setShown(next);
+    toast.success(res.message);
+    onSaved();
+  };
+
+  const onFile = async (file: File | undefined) => {
+    if (!file) return;
+    if (!(file.type in ACCEPTED_IMAGE_TYPES)) return toast.error('Unsupported image', 'Use a JPEG, PNG, WebP, AVIF or GIF image.');
+    if (file.size > MAX_IMAGE_BYTES) return toast.error('Image too large', 'The maximum size is 5 MB.');
+    setBusy('upload');
+    setProgress(0);
+    try {
+      await save(await uploadImage(file, setProgress));
+    } catch (e) {
+      toast.error('Could not upload the photo', e instanceof Error ? e.message : undefined);
+    } finally {
+      setBusy(false);
+      if (input.current) input.current.value = '';
+    }
+  };
+
+  const remove = async () => {
+    setBusy('remove');
+    try {
+      await save(null);
+    } catch (e) {
+      toast.error('Could not remove the photo', e instanceof Error ? e.message : undefined);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center">
+      <button
+        type="button"
+        onClick={() => input.current?.click()}
+        disabled={!!busy}
+        aria-label={shown ? 'Change profile photo' : 'Upload profile photo'}
+        className="group relative h-24 w-24 cursor-pointer rounded-full outline-none focus-visible:ring-4 focus-visible:ring-primary/25 disabled:cursor-wait"
+      >
+        <Avatar name={name} src={shown ?? undefined} className="h-24 w-24 text-2xl ring-4 ring-white shadow-soft" />
+        <span
+          aria-hidden
+          className={`absolute inset-0 grid place-items-center rounded-full bg-black/45 text-white transition-opacity ${
+            busy ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'
+          }`}
+        >
+          {busy === 'upload' ? (
+            <span className="tabular text-sm font-semibold">{progress < 100 ? `${progress}%` : <Loader2 className="h-5 w-5 animate-spin" />}</span>
+          ) : busy === 'remove' ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <Camera className="h-6 w-6" />
+          )}
+        </span>
+        <span aria-hidden className="absolute bottom-0.5 right-0.5 grid h-8 w-8 place-items-center rounded-full border-2 border-white bg-primary text-white shadow-soft">
+          <Camera className="h-4 w-4" />
+        </span>
+      </button>
+      <input
+        ref={input}
+        type="file"
+        accept={Object.keys(ACCEPTED_IMAGE_TYPES).join(',')}
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden
+        onChange={(e) => onFile(e.target.files?.[0])}
+      />
+      <div className="mt-3 flex items-center gap-1">
+        <Button variant="ghost" size="sm" onClick={() => input.current?.click()} disabled={!!busy}>
+          <Camera className="h-4 w-4" /> {shown ? 'Change photo' : 'Upload photo'}
+        </Button>
+        {shown && (
+          <Button variant="ghost" size="sm" onClick={remove} disabled={!!busy} className="text-red-700 hover:bg-red-50 hover:text-red-700">
+            <Trash2 className="h-4 w-4" /> Remove
+          </Button>
+        )}
+      </div>
+      <p className="text-xs text-subtle">JPEG, PNG or WebP · up to 5 MB</p>
+    </div>
+  );
 }

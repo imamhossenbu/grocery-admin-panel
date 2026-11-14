@@ -8,8 +8,8 @@ import { SettingsSkeleton } from '@/components/skeletons/SettingsSkeleton';
 export const metadata: Metadata = { title: 'Profile' };
 
 async function ProfileContent() {
-  const { email, name, lastSignInAt, createdAt } = await requireAdminPage();
-  return <ProfileView admin={{ email, name, lastSignInAt, createdAt }} />;
+  const { email, name, avatarUrl, lastSignInAt, createdAt } = await requireAdminPage();
+  return <ProfileView admin={{ email, name, avatarUrl, lastSignInAt, createdAt }} />;
 }
 
 export default function ProfilePage() {
