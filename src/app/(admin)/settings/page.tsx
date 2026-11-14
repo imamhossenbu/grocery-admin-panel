@@ -1,8 +1,8 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { requireAdminWith } from '@/lib/auth';
-import { getStoreStats, listAdmins } from '@/lib/cached-queries';
-import { DELIVERY_FEE, FREE_DELIVERY_FROM, LOW_STOCK_THRESHOLD, STORE_TIMEZONE } from '@/lib/constants';
+import { getDeliverySettings, getStoreStats, listAdmins } from '@/lib/cached-queries';
+import { LOW_STOCK_THRESHOLD, STORE_TIMEZONE } from '@/lib/constants';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadError } from '@/components/ui/LoadError';
 import { safeLoad } from '@/lib/safe-load';
@@ -20,21 +20,20 @@ function host(url: string | undefined): string | null {
 }
 
 async function SettingsContent() {
-  const [me, r] = await requireAdminWith(() => safeLoad(() => Promise.all([listAdmins(), getStoreStats()])));
+  const [me, r] = await requireAdminWith(() => safeLoad(() => Promise.all([listAdmins(), getStoreStats(), getDeliverySettings()])));
   if (!r.ok) return <LoadError error={r.error} />;
-  const [admins, stats] = r.data;
+  const [admins, stats, delivery] = r.data;
   {
     return (
       <SettingsView
         currentEmail={me.email}
         admins={admins}
+        delivery={delivery}
         info={{
           storefrontUrl: process.env.STOREFRONT_URL || null,
           supabaseHost: host(process.env.NEXT_PUBLIC_SUPABASE_URL),
           cloudinaryCloud: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || null,
           revalidateConfigured: !!(process.env.STOREFRONT_URL && process.env.REVALIDATE_SECRET),
-          freeDeliveryFrom: FREE_DELIVERY_FROM,
-          deliveryFee: DELIVERY_FEE,
           lowStock: LOW_STOCK_THRESHOLD,
           timezone: STORE_TIMEZONE,
           stats,

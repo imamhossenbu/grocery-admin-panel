@@ -15,6 +15,7 @@ import type {
   PaymentStatus,
   Product,
 } from '@/types/store';
+import type { DeliverySettings } from '@/types/admin';
 import { PAYMENT_STATUSES } from '@/types/store';
 import { slugify } from './slug';
 import { MAX_CATEGORY_DEPTH, checkParent, type ParentCheck } from './category-tree';
@@ -892,5 +893,20 @@ export async function setMessageRead(id: string, read: boolean): Promise<void> {
       'Read state needs the contact_messages.read_at column. Run supabase/schema.sql in the Supabase SQL Editor.'
     );
   }
+  if (error) throw toStoreError(error);
+}
+
+/** Saves the delivery charges (store_settings row 1); place_order() reads them. */
+export async function saveDeliverySettings(input: DeliverySettings): Promise<void> {
+  const { error } = await getDb()
+    .from('store_settings')
+    .upsert({
+      id: 1,
+      delivery_fee_dhaka: input.dhakaFee,
+      free_delivery_dhaka_from: input.dhakaFreeFrom,
+      delivery_fee_outside: input.outsideFee,
+      free_delivery_outside_from: input.outsideFreeFrom,
+      updated_at: new Date().toISOString(),
+    });
   if (error) throw toStoreError(error);
 }

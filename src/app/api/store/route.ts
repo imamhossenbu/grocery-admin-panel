@@ -21,6 +21,7 @@ import {
   setProductActive,
   setProductsActive,
   setProductsCategory,
+  saveDeliverySettings,
   setMessageRead,
   setReviewApproved,
   setProductFeatured,
@@ -35,6 +36,7 @@ import {
   parseCategory,
   parseCategoryReorder,
   parseCoupon,
+  parseDeliverySettings,
   parseId,
   parseIdList,
   parseMessageRead,
@@ -154,6 +156,9 @@ async function runAction(action: unknown, rawPayload: unknown): Promise<ActionRe
       return setMessageRead(id, read);
     }
 
+    case 'SAVE_DELIVERY_SETTINGS':
+      return saveDeliverySettings(parseDeliverySettings(asPayload(rawPayload)));
+
     case 'REVALIDATE_STOREFRONT':
       // Nothing to write: the revalidation below is the whole action.
       return;
@@ -191,7 +196,8 @@ export async function POST(req: Request) {
     const result = await runAction(action, payload);
     revalidateAdminData();
     if (typeof action === 'string' && !NO_STOREFRONT_IMPACT.has(action)) {
-      await revalidateStorefront();
+      // Delivery charges also expire the storefront's settings cache at once.
+      await revalidateStorefront(action === 'SAVE_DELIVERY_SETTINGS' || action === 'REVALIDATE_STOREFRONT' ? ['settings'] : []);
     }
 
     // The panel re-reads what it shows through its server components

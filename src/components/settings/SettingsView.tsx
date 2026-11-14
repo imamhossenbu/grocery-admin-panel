@@ -2,9 +2,10 @@
 
 import React from 'react';
 import { motion } from 'motion/react';
-import { Database, ExternalLink, Globe, RefreshCw, ShieldCheck, Store, Truck } from 'lucide-react';
-import type { AdminAccountRow } from '@/types/admin';
-import { formatBDT, formatNumber } from '@/lib/format';
+import { Database, ExternalLink, Globe, RefreshCw, ShieldCheck, Store } from 'lucide-react';
+import type { AdminAccountRow, DeliverySettingsState } from '@/types/admin';
+import { DeliverySettingsCard } from './DeliverySettingsCard';
+import { formatNumber } from '@/lib/format';
 import { formatDateTime } from '@/lib/dates';
 import { useStoreAction } from '@/lib/client/store-action';
 import { Avatar, Card, CardHeader } from '@/components/ui/Card';
@@ -18,8 +19,6 @@ export interface StoreInfo {
   supabaseHost: string | null;
   cloudinaryCloud: string | null;
   revalidateConfigured: boolean;
-  freeDeliveryFrom: number;
-  deliveryFee: number;
   lowStock: number;
   timezone: string;
   stats: { products: number; categories: number; orders: number; coupons: number; customers: number };
@@ -34,7 +33,17 @@ function Item({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
-export function SettingsView({ info, admins, currentEmail }: { info: StoreInfo; admins: AdminAccountRow[]; currentEmail: string }) {
+export function SettingsView({
+  info,
+  admins,
+  currentEmail,
+  delivery,
+}: {
+  info: StoreInfo;
+  admins: AdminAccountRow[];
+  currentEmail: string;
+  delivery: DeliverySettingsState;
+}) {
   const { run, pending } = useStoreAction();
   return (
     <motion.div variants={staggerParent} initial="initial" animate="animate" className="grid items-start gap-6 xl:grid-cols-3">
@@ -61,23 +70,13 @@ export function SettingsView({ info, admins, currentEmail }: { info: StoreInfo; 
               <Item label="Image uploads">Cloudinary{info.cloudinaryCloud ? ` (${info.cloudinaryCloud})` : ''}, Supabase Storage as fallback</Item>
               <Item label="Time zone">{info.timezone} — all dates and reports use Dhaka time</Item>
               <Item label="Low-stock alert">At {info.lowStock} units or fewer (active products)</Item>
+              <Item label="Online payments">SSLCommerz, 10 – 5,00,000 BDT per transaction; unpaid online orders expire after 60 minutes</Item>
             </dl>
           </Card>
         </motion.div>
 
         <motion.div variants={riseChild}>
-          <Card>
-            <CardHeader title="Delivery & pricing rules" description="Enforced by the database when an order is placed." icon={<Truck className="h-[18px] w-[18px]" />} />
-            <dl className="divide-y divide-[#edf4ef] px-5 pb-2 pt-2">
-              <Item label="Delivery fee">
-                <span className="tabular">{formatBDT(info.deliveryFee)}</span> per order
-              </Item>
-              <Item label="Free delivery">
-                From a subtotal of <span className="tabular">{formatBDT(info.freeDeliveryFrom)}</span>
-              </Item>
-              <Item label="Online payments">SSLCommerz, 10 – 5,00,000 BDT per transaction; unpaid online orders expire after 60 minutes</Item>
-            </dl>
-          </Card>
+          <DeliverySettingsCard state={delivery} />
         </motion.div>
 
         <motion.div variants={riseChild}>

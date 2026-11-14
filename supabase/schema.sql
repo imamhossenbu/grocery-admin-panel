@@ -165,6 +165,24 @@ create table if not exists contact_messages (
 -- Admin inbox read state (null = unread). Added after launch.
 alter table contact_messages add column if not exists read_at timestamptz;
 
+-- Store-wide settings edited in the admin panel (Settings → Delivery).
+-- Exactly one row (id = 1). Read by delivery_fee_for() below, by the
+-- storefront (getDeliverySettings) and the admin panel, all server-side.
+create table if not exists store_settings (
+  id                          int primary key default 1 check (id = 1),
+  delivery_fee_dhaka          numeric(10,2) not null default 60   check (delivery_fee_dhaka >= 0),
+  -- null = Dhaka delivery is never free
+  free_delivery_dhaka_from    numeric(10,2)          default 1000 check (free_delivery_dhaka_from is null or free_delivery_dhaka_from >= 0),
+  delivery_fee_outside        numeric(10,2) not null default 130  check (delivery_fee_outside >= 0),
+  -- null = outside-Dhaka delivery is never free
+  free_delivery_outside_from  numeric(10,2)          default null check (free_delivery_outside_from is null or free_delivery_outside_from >= 0),
+  updated_at                  timestamptz   not null default now()
+);
+insert into store_settings (id) values (1) on conflict (id) do nothing;
+alter table store_settings enable row level security;
+revoke all on store_settings from anon, authenticated;
+grant all on store_settings to service_role;
+
 -- ---------------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------------
@@ -207,13 +225,56 @@ grant all on categories, products, coupons, orders, reviews, profiles,
   to service_role;
 
 -- ---------------------------------------------------------------------------
+-- delivery_fee_for: the delivery charge for an order, from store_settings.
+-- Dhaka district (or no district: older clients) uses the Dhaka fee and
+-- free-delivery threshold; every other district the outside-Dhaka ones.
+-- Falls back to the original rule (৳60, free from ৳1000; outside ৳130) if
+-- the settings row is missing. Mirrored for display in src/lib/pricing.ts.
+-- ---------------------------------------------------------------------------
+create or replace function delivery_fee_for(p_subtotal numeric, p_customer jsonb)
+returns numeric
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_s     store_settings%rowtype;
+  v_dhaka boolean := lower(coalesce(nullif(trim(p_customer->>'district'), ''), nullif(trim(p_customer->>'city'), ''), 'dhaka')) = 'dhaka';
+  v_fee   numeric;
+  v_free  numeric;
+begin
+  if p_subtotal <= 0 then
+    return 0;
+  end if;
+  select * into v_s from store_settings where id = 1;
+  if not found then
+    v_s.delivery_fee_dhaka := 60;
+    v_s.free_delivery_dhaka_from := 1000;
+    v_s.delivery_fee_outside := 130;
+    v_s.free_delivery_outside_from := null;
+  end if;
+  if v_dhaka then
+    v_fee := v_s.delivery_fee_dhaka;
+    v_free := v_s.free_delivery_dhaka_from;
+  else
+    v_fee := v_s.delivery_fee_outside;
+    v_free := v_s.free_delivery_outside_from;
+  end if;
+  if v_free is not null and p_subtotal >= v_free then
+    return 0;
+  end if;
+  return v_fee;
+end;
+$$;
+revoke all on function delivery_fee_for(numeric, jsonb) from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
 -- place_order: the only way an order is created.
 -- Runs in one transaction: locks the product rows, re-reads price and stock
 -- from the database (the client only sends product ids and quantities),
 -- validates the coupon, decrements stock and inserts the order.
--- Delivery fee rule (keep in sync with src/lib/pricing.ts):
---   Dhaka district: subtotal >= 1000 → free, otherwise ৳60.
---   Outside Dhaka: flat ৳130.
+-- Delivery fee: delivery_fee_for() (store_settings, edited in the admin).
 -- p_payment_method: 'cod' (default) or 'sslcommerz'. Online orders start with
 -- payment_status 'pending' and get a gateway transaction id generated here;
 -- the order stays 'Pending' until mark_order_paid() confirms the payment.
@@ -317,13 +378,8 @@ begin
     update coupons set used_count = used_count + 1 where code = v_code;
   end if;
 
-  -- Dhaka district: ৳60, free from ৳1000. Everywhere else: flat ৳130 courier
-  -- fee. Orders without a district (older clients) count as Dhaka.
-  v_fee := case
-    when lower(coalesce(nullif(trim(p_customer->>'district'), ''), nullif(trim(p_customer->>'city'), ''), 'dhaka')) = 'dhaka'
-      then case when v_subtotal >= 1000 then 0 else 60 end
-    else 130
-  end;
+  -- Admin-set delivery charge (store_settings); no district counts as Dhaka.
+  v_fee := delivery_fee_for(v_subtotal, p_customer);
   v_total := greatest(0, v_subtotal - v_discount + v_fee);
 
   -- SSLCommerz accepts 10.00 – 500000.00 BDT per transaction.
@@ -794,13 +850,8 @@ begin
     update coupons set used_count = used_count + 1 where code = v_code;
   end if;
 
-  -- Dhaka district: ৳60, free from ৳1000. Everywhere else: flat ৳130 courier
-  -- fee. Orders without a district (older clients) count as Dhaka.
-  v_fee := case
-    when lower(coalesce(nullif(trim(p_customer->>'district'), ''), nullif(trim(p_customer->>'city'), ''), 'dhaka')) = 'dhaka'
-      then case when v_subtotal >= 1000 then 0 else 60 end
-    else 130
-  end;
+  -- Admin-set delivery charge (store_settings); no district counts as Dhaka.
+  v_fee := delivery_fee_for(v_subtotal, p_customer);
   v_total := greatest(0, v_subtotal - v_discount + v_fee);
 
   -- SSLCommerz accepts 10.00 – 500000.00 BDT per transaction.

@@ -1,5 +1,6 @@
 import 'server-only';
 
+import type { DeliverySettings } from '@/types/admin';
 import { ORDER_STATUSES, type OrderStatus } from '@/types/store';
 import {
   CATEGORY_CYCLE_MESSAGE,
@@ -302,4 +303,13 @@ export function parseReviewModeration(p: Payload): { id: string; approved: boole
 
 export function parseBulkCategory(p: Payload): { ids: string[]; category: string } {
   return { ids: parseIdList(p, 'ids', 'Product ids'), category: requiredString(p, 'category', 'Category', 200) };
+}
+
+export function parseDeliverySettings(p: Payload): DeliverySettings {
+  return {
+    dhakaFee: money(p.dhakaFee, 'Dhaka delivery fee'),
+    dhakaFreeFrom: optionalMoney(p.dhakaFreeFrom, 'Free delivery in Dhaka from'),
+    outsideFee: money(p.outsideFee, 'Outside-Dhaka delivery fee'),
+    outsideFreeFrom: optionalMoney(p.outsideFreeFrom, 'Free delivery outside Dhaka from'),
+  };
 }

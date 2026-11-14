@@ -250,3 +250,20 @@ export interface AdminAccountRow {
   createdAt: string | null;
   lastSignInAt: string | null;
 }
+
+/** Delivery charges (store_settings). Same shape as the storefront's lib/pricing.ts. */
+export interface DeliverySettings {
+  dhakaFee: number;
+  /** null = Dhaka delivery is never free. */
+  dhakaFreeFrom: number | null;
+  outsideFee: number;
+  /** null = outside-Dhaka delivery is never free. */
+  outsideFreeFrom: number | null;
+}
+
+export interface DeliverySettingsState {
+  settings: DeliverySettings;
+  /** false until supabase/schema.sql has created the store_settings table. */
+  ready: boolean;
+  updatedAt: string | null;
+}

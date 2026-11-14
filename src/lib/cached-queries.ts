@@ -121,6 +121,12 @@ export async function listAdmins() {
   return q.listAdmins();
 }
 
+export async function getDeliverySettings() {
+  'use cache';
+  admin('settings');
+  return q.getDeliverySettings();
+}
+
 export async function getStoreStats() {
   'use cache';
   admin('stats');

@@ -17,6 +17,8 @@ import type {
   CustomerDetail,
   CustomerFilters,
   CustomerRow,
+  DeliverySettings,
+  DeliverySettingsState,
   OrderFilters,
   OrdersPage,
   OverviewData,
@@ -115,6 +117,9 @@ function check<T>(result: { data: T | null; error: unknown; count?: number | nul
   if (result.error) throw toStoreError(result.error as Parameters<typeof toStoreError>[0]);
   return result.data as T;
 }
+
+/** "Table/function not there yet" codes from PostgREST / Postgres. */
+const NOT_READY = new Set(['PGRST205', 'PGRST202', '42P01', '42883']);
 
 const num = (v: unknown) => {
   const n = Number(v);
@@ -1111,5 +1116,36 @@ export async function getStoreStats(): Promise<{ products: number; categories: n
     orders: orders.count ?? 0,
     coupons: coupons.count ?? 0,
     customers: customers.count ?? 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Store settings
+// ---------------------------------------------------------------------------
+
+/** The original hard-coded rule; delivery_fee_for() uses the same fallback. */
+export const DEFAULT_DELIVERY: DeliverySettings = { dhakaFee: 60, dhakaFreeFrom: 1000, outsideFee: 130, outsideFreeFrom: null };
+
+export async function getDeliverySettings(): Promise<DeliverySettingsState> {
+  const { data, error } = await getDb()
+    .from('store_settings')
+    .select('delivery_fee_dhaka, free_delivery_dhaka_from, delivery_fee_outside, free_delivery_outside_from, updated_at')
+    .eq('id', 1)
+    .maybeSingle();
+  if (error) {
+    if (NOT_READY.has(error.code ?? '')) return { settings: DEFAULT_DELIVERY, ready: false, updatedAt: null };
+    throw toStoreError(error);
+  }
+  if (!data) return { settings: DEFAULT_DELIVERY, ready: true, updatedAt: null };
+  const opt = (v: unknown) => (v === null || v === undefined ? null : num(v));
+  return {
+    settings: {
+      dhakaFee: num(data.delivery_fee_dhaka),
+      dhakaFreeFrom: opt(data.free_delivery_dhaka_from),
+      outsideFee: num(data.delivery_fee_outside),
+      outsideFreeFrom: opt(data.free_delivery_outside_from),
+    },
+    ready: true,
+    updatedAt: (data.updated_at as string | null) ?? null,
   };
 }
