@@ -355,3 +355,16 @@ input[type="search"]::-webkit-search-decoration {
     background: #fff !important;
   }
 }
+
+/* Browser autofill: keep our field colours instead of Chrome's blue/yellow. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill {
+  -webkit-text-fill-color: #112a1d;
+  caret-color: #112a1d;
+  box-shadow: 0 0 0 1000px #f3faf5 inset;
+  transition: background-color 9999s ease-out 0s;
+}
