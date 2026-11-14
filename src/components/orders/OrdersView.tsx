@@ -268,7 +268,7 @@ export function OrdersView({ data, filters }: { data: OrdersPage; filters: Order
               />
               {data.districts.length > 0 && (
                 <Select
-                  className="w-44"
+                  className="w-40"
                   value={filters.district}
                   onChange={(v) => set({ district: v })}
                   onClear={() => set({ district: null })}
@@ -280,7 +280,7 @@ export function OrdersView({ data, filters }: { data: OrdersPage; filters: Order
               )}
               {data.areas.length > 0 && (
                 <Select
-                  className="w-44"
+                  className="w-40"
                   value={filters.area}
                   onChange={(v) => set({ area: v })}
                   onClear={() => set({ area: null })}
@@ -291,7 +291,7 @@ export function OrdersView({ data, filters }: { data: OrdersPage; filters: Order
                 />
               )}
               <DateRangePicker
-                className="w-56"
+                className="w-52"
                 clearable
                 placeholder="Any date"
                 value={{ from: filters.from, to: filters.to }}
